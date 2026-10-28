@@ -23,16 +23,16 @@ Priorities, in order: **correct** (invariants hold under concurrency and failure
 | ID | Rule | Enforced by |
 | --- | --- | --- |
 | E8 | Money is `int64` minor units with a currency; fees and splits only through `platform/money` (floor of basis points, remainder to the other party). No floating point on any money path, tests included (TD §1.1). | lint, review |
-| E9 | Statuses, kinds and other closed sets are typed constants; every switch over them is exhaustive. | lint |
+| E9 | Statuses, kinds and other closed sets are typed constants; every switch over them is exhaustive. | lint, review |
 | E10 | Invalid states are unrepresentable where it is cheap: constructors validate, and zero values are either valid or unusable outside the package. | review |
-| E11 | A function does one thing, returns early, and stays short (guide: under 60 lines, cognitive complexity under 15). No boolean parameter that switches behavior. | lint, review |
+| E11 | A function does one thing, returns early, and stays short (guide: at most 60 lines, cognitive complexity at most 15). No boolean parameter that switches behavior. | lint, review |
 | E12 | Names come from the spec and the glossary (PRD §16); no unexplained abbreviations. | review |
 
 ## 3. Errors
 
 | ID | Rule | Enforced by |
 | --- | --- | --- |
-| E13 | Every error is handled. Wrap with context using `%w`; compare with `errors.Is` / `errors.As`. | lint |
+| E13 | Every error is handled. Wrap with context using `%w`; compare with `errors.Is` / `errors.As`. | lint, review |
 | E14 | Modules export sentinel errors. SQLSTATEs are mapped once, in `platform/db`, per TD §1.5; HTTP problem types only in `httpapi` (TD §29.6). | review |
 | E15 | An error is logged once, where it is handled (usually the edge); never log and return. No `panic` on request or job paths. | review |
 
@@ -57,7 +57,7 @@ Priorities, in order: **correct** (invariants hold under concurrency and failure
 | E25 | Retries happen only in the orchestrator (driver, resolver, processor), bounded, with full jitter and a budget (TD §6.3). | review |
 | E26 | Events: the outbox row is written in the producing transaction; consumers commit effect and inbox together (TD §7). Incoming webhooks: verify, deduplicate, apply guarded, answer fast (TD §6.5). | tests |
 | E27 | Jobs claim work with leases and `FOR UPDATE SKIP LOCKED`. Every goroutine has an owner, a cancellation path and a bounded lifetime (`context`, `errgroup`); no fire-and-forget goroutines. | `-race`, review |
-| E28 | `context.Context` is the first parameter of every function that does I/O; request paths never use `context.Background()`. | lint |
+| E28 | `context.Context` is the first parameter of every function that does I/O; request paths never use `context.Background()`. | lint, review |
 
 ## 6. Tests
 

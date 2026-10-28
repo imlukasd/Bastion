@@ -107,4 +107,9 @@ The full loop is the default. A step that adds nothing to correctness for an ite
 - Docs, code and comments in English.
 - Branches: `item/<ID>-<slug>`, merged into `main` with `--no-ff` after approval, so verified commits stay in `main`'s history. A red baseline that belongs to no item is fixed on `fix/<slug>` and merged the same way after the owner approves the diff.
 - Commits: `<type>(<ID>): <summary>`, type one of `feat`, `fix`, `test`, `docs`, `chore`, `refactor`; lowercase, imperative, under ~60 characters; no names and no trailers (no `Co-Authored-By`). An owner approval is the commit itself, made only after the owner's answer: the brief (`docs(<ID>): add brief`, later `docs(<ID>): update brief …`) and, unless the brief skips G2, the tests (`test(<ID>): …`).
-- Commands: none yet. P1-01 adds the Taskfile (TD §35.1) and lists its commands here.
+- Commands (Taskfile.yml, TD §35.1). Prerequisites: Go 1.27.3 (go.dev MSI; the auto-downloaded toolchain is blocked by Windows Application Control), task 3.54.0 (`winget install Task.Task`), gcc for `-race`, Docker from P1-02.
+  - `task check`: the baseline: build, vet, golangci-lint, govulncheck, unit tests (`-short`), plan check. Prints failures only; `check OK` when green.
+  - `task test`: the full suite with `-race` (G3).
+  - `task up`, `task down`, `task migrate`: local stack and migrations (P1-02).
+  - `task chaos [-- C4]`: chaos scenarios (P2-04).
+  - Lint and vulnerability tools are pinned in `tools.mod`: `go tool -modfile=tools.mod golangci-lint run ./...`; upgrade with `go get -tool -modfile=tools.mod <tool>@<version>`.
