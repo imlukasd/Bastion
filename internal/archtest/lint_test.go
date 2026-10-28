@@ -63,8 +63,9 @@ func TestLint_FixturesReportExpectedIssues(t *testing.T) {
 	var gotIssues []issue
 	for _, r := range got {
 		gotIssues = append(gotIssues, r.issue)
-		if r.linter == "forbidigo" {
-			ruleID := ruleOf(t, r.file) + ":"
+		ruleID, inRule := ruleOf(r.file)
+		if r.linter == "forbidigo" && inRule {
+			ruleID += ":"
 			if !strings.Contains(r.text, ruleID) {
 				t.Errorf("%v: text %q does not name %s", r.issue, r.text, ruleID)
 			}
@@ -127,7 +128,10 @@ func lintRules(t *testing.T) []int {
 		}
 		for by := range strings.SplitSeq(m[2], ",") {
 			if strings.TrimSpace(by) == "lint" {
-				id, _ := strconv.Atoi(m[1]) // \d+ always parses
+				id, err := strconv.Atoi(m[1])
+				if err != nil {
+					t.Fatalf("ENGINEERING.md rule E%s: %v", m[1], err)
+				}
 				ids = append(ids, id)
 			}
 		}
@@ -175,15 +179,16 @@ func runLint(t *testing.T) []report {
 	return reports
 }
 
-// ruleOf returns the rule ID a fixture file belongs to: e08/money.go → E8.
-func ruleOf(t *testing.T, file string) string {
-	t.Helper()
+// ruleOf returns the rule ID a fixture file belongs to (e08/money.go → E8),
+// and false for a file outside a rule folder eNN, such as clean/.
+func ruleOf(file string) (string, bool) {
 	folder, _, _ := strings.Cut(file, "/")
-	n, err := strconv.Atoi(strings.TrimPrefix(folder, "e"))
-	if err != nil {
-		t.Fatalf("%s is not in a rule folder eNN", file)
+	digits, ok := strings.CutPrefix(folder, "e")
+	n, err := strconv.Atoi(digits)
+	if !ok || err != nil {
+		return "", false
 	}
-	return "E" + strconv.Itoa(n)
+	return "E" + strconv.Itoa(n), true
 }
 
 // diff returns the issues only in want and the issues only in got.
