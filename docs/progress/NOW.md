@@ -4,7 +4,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 - **Updated:** 2026-10-28, Claude with Lukas (P1-01 started)
 - **Phase:** 1 Foundations, in progress
-- **Active item:** P1-01 Repository skeleton, owner Claude, stage: brief draft (G1 not yet approved)
+- **Active item:** P1-01 Repository skeleton, owner Claude, stage: brief approved (`Skip: G2`), implementing
 - **Branch:** item/P1-01-skeleton
 
 ## State
@@ -18,7 +18,8 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 ## Next step
 
-1. Finish the draft brief `docs/briefs/active/P1-01-skeleton.md`: run the spikes (outside the repository) for which tool versions to pin, `go tool` with a separate modfile, forbidigo on `float64` as a type, golangci-lint on testdata fixtures, linter thresholds, govulncheck on Go 1.25.6; ask the owner the decisions marked `OPEN`; show the brief and wait for `approve brief`. D1 is settled: module path `github.com/imlukasd/Bastion`.
+1. Owner: install Go 1.27.3 (go.dev MSI) and task 3.54.0 (`winget install Task.Task`): brief Step 0. Until then nothing can be built (go.mod needs Go 1.27; the auto-downloaded toolchain is blocked here).
+2. Then Steps 1–7 of `docs/briefs/active/P1-01-skeleton.md` (Executor: strong), one `feat(P1-01)` commit per green step; then `/handoff` with G3, G5 and the item report.
 
 ## Open questions (owner decides)
 
