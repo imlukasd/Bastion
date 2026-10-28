@@ -12,6 +12,7 @@ linters:
     - gocognit         # E11
     - gocritic         # E37
     - gosec            # E36
+    - noctx            # E28
     - nolintlint       # E40
     - revive           # E11, E28, E37
   settings:
@@ -53,7 +54,7 @@ linters:
       - path: _test\.go$
         linters: [funlen]
       - path: ^scripts/
-        linters: [forbidigo, funlen, gochecknoglobals, gocognit]
+        linters: [forbidigo, funlen, gochecknoglobals, gocognit, noctx]
       - path: ^cmd/
         linters: [forbidigo]
         text: "E28"

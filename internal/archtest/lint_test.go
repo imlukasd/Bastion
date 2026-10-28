@@ -101,6 +101,7 @@ func expectedIssues() []issue {
 		{"e28/ctx.go", 7, "revive"},          // context-as-argument
 		{"e28/ctx.go", 10, "forbidigo"},      // context.Background
 		{"e28/ctx.go", 13, "forbidigo"},      // context.TODO
+		{"e28/noctx.go", 7, "noctx"},         // http.Get without a context
 		{"e36/secret.go", 6, "gosec"},        // G101
 		{"e37/doc.go", 4, "revive"},          // exported without a doc comment
 		{"e37/doc.go", 5, "gocritic"},        // commentedOutCode
