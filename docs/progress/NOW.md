@@ -4,7 +4,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 - **Updated:** 2026-10-28, Claude with Lukas (P1-01 started)
 - **Phase:** 1 Foundations, in progress
-- **Active item:** P1-01 Repository skeleton, owner Claude, stage: brief approved (`Skip: G2`), implementing
+- **Active item:** P1-01 Repository skeleton, owner Claude, stage: Steps 1–6 done; Step 7 stopped (Smart App Control blocks a test binary)
 - **Branch:** item/P1-01-skeleton
 
 ## State
@@ -18,10 +18,12 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 ## Next step
 
-1. Continue `docs/briefs/active/P1-01-skeleton.md` (Executor: strong) at the first step its Progress does not list, one `feat(P1-01)` commit per green step.
-2. Then `/handoff` with G3, G5 and the item report.
+1. Owner: answer the Smart App Control question below (brief Stop rule hit in Step 7).
+2. Then finish Step 7 of `docs/briefs/active/P1-01-skeleton.md`: `task test` → exit 0 (`task check` is already `check OK`); then `/handoff` with G3, G5 and the item report.
 
 ## Open questions (owner decides)
+
+- Smart App Control (enforcement mode) blocked the `-race` build of `internal/archtest`'s test binary twice, so `task test` fails on this machine. It can hit any unsigned test binary. Options: turn Smart App Control off, or run the suite in Linux (WSL2 or a container). Details: P1-01 brief › Surprises.
 
 - CI on GitHub Actions (TD §34.4): deferred by the owner on 2026-10-28; no CI item in the plan for now.
 
