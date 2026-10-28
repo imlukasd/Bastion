@@ -296,6 +296,8 @@ Stop and report instead of choosing when:
 - Windows Application Control blocks a binary again after one retry.
 
 ## Progress
+- 2026-10-28 Step 0: `go version` → `go version go1.27.3 windows/amd64`; `task --version` → `3.54.0` (installed with winget; a shell started before the install needs a restart to find it on PATH).
+- 2026-10-28 Step 1: `go list -m` → `github.com/imlukasd/Bastion`; `go mod edit -json` → `"Go": "1.27.0"`, `"Toolchain": "go1.27.3"`, no `Require` or `Tool`; `go mod edit -json tools.mod` → `Tool`: golangci-lint, govulncheck; go.mod unchanged by `go get -tool`; `golangci-lint version` → 2.15.0, `govulncheck -version` → v1.9.0, both built with go1.27.3.
 
 ## Surprises
 - 2026-10-28: Go 1.25 is out of support (current: 1.27.3, 1.26.10) and govulncheck flags its standard library; the latest tools need Go >= 1.26 (D2).

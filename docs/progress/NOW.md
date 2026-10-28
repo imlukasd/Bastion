@@ -14,12 +14,12 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 - Loop for every item: item brief approved (G1) → tests approved (G2) → implementation by the brief's executor → G3–G5 → owner's `approve` → merge `--no-ff`. Items that are not critical may skip G2 and G5 when their brief says so (AGENTS.md › Right-sizing).
 - Models: main session Opus (`.claude/settings.json`); `implementer` subagent (Sonnet) for `Executor: standard`; `reviewer` pinned to Opus. All of Phase 1 is `Executor: strong`.
 - Baseline until P1-01 exists: `go run scripts/brief/main.go -check` → `plan OK` (on an item branch: `plan OK, item <ID> OK`).
-- Not installed on this machine yet: task, golangci-lint, govulncheck (Go 1.25.6 and Docker are; the Docker daemon was not running on 2026-10-28).
+- Toolchain: Go 1.27.3 (MSI) and task 3.54.0 (winget) installed; golangci-lint and govulncheck are pinned in `tools.mod`. Docker is installed; its daemon was not running on 2026-10-28.
 
 ## Next step
 
-1. Owner: install Go 1.27.3 (go.dev MSI) and task 3.54.0 (`winget install Task.Task`): brief Step 0. Until then nothing can be built (go.mod needs Go 1.27; the auto-downloaded toolchain is blocked here).
-2. Then Steps 1–7 of `docs/briefs/active/P1-01-skeleton.md` (Executor: strong), one `feat(P1-01)` commit per green step; then `/handoff` with G3, G5 and the item report.
+1. Continue `docs/briefs/active/P1-01-skeleton.md` (Executor: strong) at the first step its Progress does not list, one `feat(P1-01)` commit per green step.
+2. Then `/handoff` with G3, G5 and the item report.
 
 ## Open questions (owner decides)
 
