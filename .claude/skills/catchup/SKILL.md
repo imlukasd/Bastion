@@ -10,7 +10,7 @@ Run **1. Start: red first** of the session protocol in AGENTS.md.
 3. Triage in this order, and stop at the first thing that is red:
    1. `WARN` lines of the session brief. Uncommitted changes: read `git diff` and say whether they match NOW.md; never discard them without the user's consent. Unmerged item branch while on `main`: propose `git switch` to it. NOW.md behind HEAD: read `git log <rev>..HEAD`.
    2. The baseline: `task check` if `Taskfile.yml` exists, else `go run scripts/brief/main.go -check`. Show what it printed.
-   3. An item `in_progress`: propose to resume it at its stage: brief not approved yet (finish it, ask the `OPEN` decisions), tests not approved yet (G2), or the next step in the brief's Progress (who executes it: the brief's `Executor:`).
+   3. An item `in_progress`: propose to resume it at its stage: brief not approved yet (finish it, ask the `OPEN` decisions), tests not approved yet (G2, unless the brief says `Skip: G2`), or the next step in the brief's Progress (who executes it: the brief's `Executor:`).
    4. Owner-requested changes in NOW.md.
 4. Report in at most 12 lines, in the user's language:
    - **Red**: what is red and the fix you propose, or "nothing red" with the baseline output line;

@@ -9,9 +9,9 @@
 //	go run scripts/brief/main.go -item P1-06  one item in full
 //
 // On an item branch the item loop of docs/briefs/README.md is checked: the
-// approved item brief comes before tests, the approved tests before code,
-// tests change only in approved test commits, and every changed path is
-// inside the Files of the last approved brief.
+// approved item brief comes before tests and code, every changed path is
+// inside the Files of the last approved brief, and unless the brief skips G2
+// the approved tests come before code and change only in test commits.
 package main
 
 import (
@@ -34,10 +34,6 @@ const (
 	briefsDir    = "docs/briefs"
 	mainBranch   = "main"
 
-	// An owner approval is a commit whose subject ends like this (AGENTS.md
-	// › Conventions).
-	approvedSuffix = `\(approved: [^)]+\)$`
-
 	maxRecentCommits = 6
 	maxDirtyPaths    = 8
 	maxReadyItems    = 3
@@ -50,6 +46,7 @@ var (
 	itemBranchRe  = regexp.MustCompile(`^item/(P\d+-\d+)`)
 	headingRe     = regexp.MustCompile(`^## (.+?)\s*$`)
 	executorRe    = regexp.MustCompile(`(?m)^Executor: (strong|standard)\b`)
+	skipRe        = regexp.MustCompile(`(?m)^Skip: (.*)$`)
 	openRe        = regexp.MustCompile(`\|\s*OPEN\s*\|`)
 	backtickRe    = regexp.MustCompile("`([^`]+)`")
 
@@ -57,6 +54,10 @@ var (
 	// Template); critical items add criticalSections.
 	briefSections    = []string{"Goal", "Spec", "Decisions", "Files", "Contracts", "Steps", "Test map", "Out of scope", "Stop rules", "Progress", "Surprises", "Outcome"}
 	criticalSections = []string{"Locks", "Race table", "Mutations"}
+
+	// The gates a brief may skip on its `Skip:` line, on items that are not
+	// critical (AGENTS.md › Right-sizing).
+	skippableGates = map[string]bool{"G2": true, "G5": true}
 )
 
 type backlog struct {
@@ -307,8 +308,9 @@ func checkBranchClaim(branch string, b *backlog) []string {
 // checks it breaks.
 type itemWork struct {
 	id          string
-	briefCommit string // last `docs(<ID>): brief … (approved: …)` commit
-	testsCommit string // first `test(<ID>): … (approved: …)` commit
+	briefCommit string // last `docs(<ID>): … brief …` commit that changes the brief
+	testsCommit string // first `test(<ID>): …` commit
+	skipsG2     bool   // the approved brief says `Skip: G2`: tests come with the code
 	problems    []string
 }
 
@@ -348,17 +350,20 @@ func inspectItemWork(root string, b *backlog) *itemWork {
 		w.addf("cannot read the branch history: %v", err)
 		return w
 	}
-	w.checkOrder(commits)
+	// The last approved brief decides Files and the skipped gates for the
+	// whole branch, so it is read before the commits are judged.
 	allowed := w.alwaysAllowed()
-	if w.briefCommit != "" {
-		files, problems := approvedBrief(root, w.briefCommit, *it)
+	if last := w.lastBriefCommit(commits); last != "" {
+		files, skips, problems := approvedBrief(root, last, *it)
 		w.problems = append(w.problems, problems...)
 		allowed = append(allowed, files...)
+		w.skipsG2 = skips["G2"]
 	}
+	w.checkOrder(commits)
 	dirty := uncommittedPaths(root)
 	w.checkScope(root, base, allowed, dirty)
-	if t := testPaths(dirty); w.testsCommit != "" && len(t) > 0 {
-		w.addf("uncommitted test changes after the approved tests: %s; commit them as `test(%s): … (approved: <owner>)` once the owner agrees, or revert them", strings.Join(t, ", "), w.id)
+	if t := testPaths(dirty); !w.skipsG2 && w.testsCommit != "" && len(t) > 0 {
+		w.addf("uncommitted test changes after the approved tests: %s; commit them as `test(%s): …` once the owner agrees, or revert them", strings.Join(t, ", "), w.id)
 	}
 	return w
 }
@@ -367,6 +372,8 @@ func (w *itemWork) stage() string {
 	switch {
 	case w.briefCommit == "":
 		return fmt.Sprintf("Item %s: brief not approved yet (G1)", w.id)
+	case w.skipsG2:
+		return fmt.Sprintf("Item %s: brief approved @%.7s; G2 skipped, tests come with the code; implementing (see the brief's Progress)", w.id, w.briefCommit)
 	case w.testsCommit == "":
 		return fmt.Sprintf("Item %s: brief approved @%.7s; tests not approved yet (G2)", w.id, w.briefCommit)
 	default:
@@ -377,32 +384,53 @@ func (w *itemWork) stage() string {
 // alwaysAllowed are the paths every stage may change: the item's own brief
 // and the progress files.
 func (w *itemWork) alwaysAllowed() []string {
-	return []string{featuresFile, nowFile, logFile,
-		briefsDir + "/active/" + w.id + "-*.md", briefsDir + "/completed/" + w.id + "-*.md"}
+	return append([]string{featuresFile, nowFile, logFile}, w.briefPaths()...)
+}
+
+func (w *itemWork) briefPaths() []string {
+	return []string{briefsDir + "/active/" + w.id + "-*.md", briefsDir + "/completed/" + w.id + "-*.md"}
+}
+
+// isBrief reports whether c approves a version of the item brief: a
+// `docs(<ID>)` commit that names the brief and changes it. Such a commit is
+// made only after the owner's answer, so the commit itself is the approval.
+func (w *itemWork) isBrief(c commitInfo) bool {
+	subjectRe := regexp.MustCompile(`^docs\(` + regexp.QuoteMeta(w.id) + `\): .*\bbrief\b`)
+	return subjectRe.MatchString(c.subject) && len(outside(c.files, w.briefPaths())) < len(c.files)
+}
+
+func (w *itemWork) lastBriefCommit(commits []commitInfo) string {
+	var last string
+	for _, c := range commits {
+		if w.isBrief(c) {
+			last = c.hash
+		}
+	}
+	return last
 }
 
 // checkOrder walks the branch oldest first: nothing but the brief and the
-// progress files before the approved brief (G1), no code before the approved
-// tests (G2), and after them no test change outside an approved test commit.
+// progress files before the approved brief (G1); unless the brief skips G2, no
+// code before the approved tests, and after them no test change outside a
+// test commit.
 func (w *itemWork) checkOrder(commits []commitInfo) {
 	q := regexp.QuoteMeta(w.id)
-	briefRe := regexp.MustCompile(`^docs\(` + q + `\): brief\b.*` + approvedSuffix)
-	testRe := regexp.MustCompile(`^test\(` + q + `\): .*` + approvedSuffix)
+	testRe := regexp.MustCompile(`^test\(` + q + `\): `)
 	codeRe := regexp.MustCompile(`^(feat|fix|refactor)\(` + q + `\):`)
 	always := w.alwaysAllowed()
 	for _, c := range commits {
 		at := fmt.Sprintf("%.7s %q", c.hash, c.subject)
-		isBrief, isTest := briefRe.MatchString(c.subject), testRe.MatchString(c.subject)
+		isBrief, isTest := w.isBrief(c), testRe.MatchString(c.subject)
 		if w.briefCommit == "" && !isBrief {
 			if out := outside(c.files, always); len(out) > 0 {
 				w.addf("%s changes %s before the approved brief (G1)", at, strings.Join(out, ", "))
 			}
 		}
-		if codeRe.MatchString(c.subject) && w.testsCommit == "" {
+		if !w.skipsG2 && codeRe.MatchString(c.subject) && w.testsCommit == "" {
 			w.addf("%s is code before the approved tests (G2)", at)
 		}
-		if t := testPaths(c.files); w.testsCommit != "" && !isTest && len(t) > 0 {
-			w.addf("%s changes tests outside a `test(%s): … (approved: …)` commit: %s", at, w.id, strings.Join(t, ", "))
+		if t := testPaths(c.files); !w.skipsG2 && w.testsCommit != "" && !isTest && len(t) > 0 {
+			w.addf("%s changes tests outside a `test(%s): …` commit: %s", at, w.id, strings.Join(t, ", "))
 		}
 		if isBrief {
 			w.briefCommit = c.hash
@@ -449,9 +477,9 @@ func itemCommits(root, base string) ([]commitInfo, error) {
 }
 
 // approvedBrief reads the brief as it was approved in commit and returns its
-// Files patterns, with a problem for each Definition of Ready rule the
-// machine can check.
-func approvedBrief(root, commit string, it item) ([]string, []string) {
+// Files patterns and skipped gates, with a problem for each Definition of
+// Ready rule the machine can check.
+func approvedBrief(root, commit string, it item) ([]string, map[string]bool, []string) {
 	files, _ := gitOut(root, "diff-tree", "--no-commit-id", "--name-only", "-r", "--no-renames", commit)
 	pathRe := regexp.MustCompile(`^` + regexp.QuoteMeta(briefsDir) + `/(active|completed)/` + regexp.QuoteMeta(it.ID) + `-[^/]+\.md$`)
 	var path string
@@ -461,16 +489,44 @@ func approvedBrief(root, commit string, it item) ([]string, []string) {
 		}
 	}
 	if path == "" {
-		return nil, []string{fmt.Sprintf("approved brief commit %.7s does not contain %s/active/%s-<slug>.md", commit, briefsDir, it.ID)}
+		return nil, nil, []string{fmt.Sprintf("approved brief commit %.7s does not contain %s/active/%s-<slug>.md", commit, briefsDir, it.ID)}
 	}
 	text, err := gitOut(root, "show", commit+":"+path)
 	if err != nil {
-		return nil, []string{fmt.Sprintf("cannot read %s at %.7s: %v", path, commit, err)}
+		return nil, nil, []string{fmt.Sprintf("cannot read %s at %.7s: %v", path, commit, err)}
 	}
 	return readyBrief(text, it, fmt.Sprintf("%s @%.7s", path, commit))
 }
 
-func readyBrief(text string, it item, where string) ([]string, []string) {
+// briefSkips reads the brief's `Skip:` line: `none`, or gates separated by
+// commas, optionally followed by a remark in parentheses. Only G2 and G5 may
+// be skipped, and only on items that are not critical.
+func briefSkips(text string, it item) (map[string]bool, []string) {
+	skips := map[string]bool{}
+	m := skipRe.FindStringSubmatch(text)
+	if m == nil {
+		return skips, nil
+	}
+	list, _, _ := strings.Cut(m[1], "(")
+	if strings.TrimSpace(list) == "none" {
+		return skips, nil
+	}
+	var errs []string
+	for _, g := range strings.Split(list, ",") {
+		g = strings.TrimSpace(g)
+		switch {
+		case !skippableGates[g]:
+			errs = append(errs, fmt.Sprintf("`Skip: %s`: only G2 and G5 can be skipped", g))
+		case it.Critical:
+			errs = append(errs, fmt.Sprintf("`Skip: %s`: a critical item skips no gate", g))
+		default:
+			skips[g] = true
+		}
+	}
+	return skips, errs
+}
+
+func readyBrief(text string, it item, where string) ([]string, map[string]bool, []string) {
 	var errs []string
 	add := func(format string, args ...any) { errs = append(errs, where+": "+fmt.Sprintf(format, args...)) }
 
@@ -493,6 +549,10 @@ func readyBrief(text string, it item, where string) ([]string, []string) {
 	if openRe.MatchString(secs["Decisions"]) {
 		add("a decision is still OPEN")
 	}
+	skips, skipErrs := briefSkips(text, it)
+	for _, e := range skipErrs {
+		add("%s", e)
+	}
 	var patterns []string
 	for _, line := range strings.Split(secs["Files"], "\n") {
 		if !strings.HasPrefix(strings.TrimSpace(line), "- ") {
@@ -509,7 +569,7 @@ func readyBrief(text string, it item, where string) ([]string, []string) {
 	if len(patterns) == 0 {
 		add("Files lists no path")
 	}
-	return patterns, errs
+	return patterns, skips, errs
 }
 
 // sections maps each "## " heading of a Markdown text to its body, ignoring

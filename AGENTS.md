@@ -41,20 +41,20 @@ Never read the four spec documents in full (about 80k tokens). Read the sections
 
 1. Read it: `go run scripts/brief/main.go -item <ID>`; then its `refs` and the CONTEXT-MAP "Always" list (for code, docs/ENGINEERING.md).
 2. On the owner's go: from an up-to-date `main`, `git switch -c item/<ID>-<slug>`. Set the item `in_progress` with your name as `owner` (and its phase `in_progress` if it is the first item of the phase); in NOW.md set "Active item" and "Next step". Commit `chore(<ID>): start`.
-3. **Item brief (G1), every item.** Write `docs/briefs/active/<ID>-<slug>.md` from the template in docs/briefs/README.md (critical items add Locks, Race table, Mutations). Ask the owner every decision that is theirs (rows marked `OPEN`); settle technical unknowns with spikes outside the repository. When the Definition of Ready holds, show the brief and wait. On `approve brief`: commit `docs(<ID>): brief (approved: <owner>)`. No test or code before this commit.
-4. **Tests first (G2).** Write the tests of the brief's Test map (with stubs from its Contracts so they compile), run them, show that they fail for the right reason. On the owner's `ok tests`: commit `test(<ID>): … (approved: <owner>)`. After it, tests change only in another such commit, after the owner approved the change.
+3. **Item brief (G1), every item.** Write `docs/briefs/active/<ID>-<slug>.md` from the template in docs/briefs/README.md (critical items add Locks, Race table, Mutations). Ask the owner every decision that is theirs (rows marked `OPEN`); settle technical unknowns with spikes outside the repository. Propose any skipped gate on the brief's `Skip:` line (see Right-sizing). When the Definition of Ready holds, show the brief and wait. On `approve brief`: commit `docs(<ID>): add brief`. No test or code before this commit.
+4. **Tests first (G2)**, unless the brief says `Skip: G2`. Write the tests of the brief's Test map (with stubs from its Contracts so they compile), run them, show that they fail for the right reason. On the owner's `ok tests`: commit `test(<ID>): …`. After it, tests change only in another such commit, after the owner approved the change. With `Skip: G2`, the tests come with the code in the `feat` commits.
 
 ### 3. Work
 
 - Follow the brief's Steps; one item at a time; anything outside the brief goes to NOW.md "Open questions".
 - **Executor** (the brief's `Executor:` line): `strong` → the strong model implements in the main session. `standard` → delegate the steps to the standard model with the item ID, the brief path and the steps (Claude Code: the `implementer` subagent). After each return: run `-check`, record Progress in the brief; answer a stop from the brief or the spec and record it under Surprises as a brief gap, or ask the owner when it needs a new decision; when the same step fails twice, the strong model takes it over.
 - Small steps; after each green step commit `feat|fix|refactor(<ID>): …` and keep NOW.md "Next step" true, so a crash or `/clear` loses nothing.
-- Spec conflict or gap: stop, write it under "Open questions" and in the brief's Surprises, ask the owner. Never silently diverge from docs/01–04. A change to the brief beyond Progress and Surprises needs `docs(<ID>): brief update (approved: <owner>)`.
+- Spec conflict or gap: stop, write it under "Open questions" and in the brief's Surprises, ask the owner. Never silently diverge from docs/01–04. A change to the brief beyond Progress and Surprises needs the owner's approval, then `docs(<ID>): update brief …`.
 
 ### 4. End (handoff): before `/clear`, before switching items, before stopping
 
 1. Run the item's `verify` commands and note what they printed.
-2. If the item is finished: run the gates of docs/REVIEW.md (G3 full suite, G4 mutations for critical items, G5 `reviewer`), write the item report into the brief's Outcome, and wait for the owner's `approve`.
+2. If the item is finished: run the gates of docs/REVIEW.md (G3 full suite, G4 mutations for critical items, G5 `reviewer` unless the brief skips it), write the item report into the brief's Outcome, and wait for the owner's `approve`.
 3. Update the files in the table below. An unfinished item stays `in_progress`, or `blocked` with the reason in `notes`.
 4. `go run scripts/brief/main.go -check` passes. Commit `chore(<ID>): handoff` (or `done`), tree clean.
 5. If approved: `git switch main`, `git merge --no-ff item/<ID>-<slug>`, `git branch -d item/<ID>-<slug>`, run the baseline on `main`. Then the owner runs `/clear` before the next item.
@@ -74,7 +74,15 @@ A handoff is good when a new agent or person, with only the repository and no ch
 | docs/01–04 (+ an AD) | The spec changed, with the owner's approval | In the same commit as the code |
 | `docs/ENGINEERING.md` | A repeated mistake becomes a rule, with the owner's approval | One rule with an ID |
 
-`-check` fails when a done item has no complete evidence, when evidence points at a missing report or a commit outside HEAD's history, when the plan is inconsistent, and, on an item branch, when the brief → tests → code order, the test lock or the brief's Files are broken (docs/briefs/README.md › Machine checks).
+`-check` fails when a done item has no complete evidence, when evidence points at a missing report or a commit outside HEAD's history, when the plan is inconsistent, and, on an item branch, when the brief → tests → code order, the test lock, the brief's `Skip:` line or its Files are broken (docs/briefs/README.md › Machine checks).
+
+## Right-sizing
+
+The full loop is the default. A step that adds nothing to correctness for an item may be skipped:
+
+- The writer proposes it in the item brief (`Skip:` line, reason in Decisions); the owner approves it with the brief. Never skip silently mid-item.
+- Skippable, on items that are not critical only: G2 (tests come with the code, no separate approval) and G5 (independent review). A simple item's brief may write "None." under Spec and Contracts. A test that only re-checks what the build or `task check` already catches becomes a verify command.
+- Never skipped: the brief (G1); a green baseline and full suite (G3); test-first and mutations for critical items (G2, G4); tests on money, state or concurrency paths; the evidence and the owner's `approve` (G6).
 
 ## Plan rules
 
@@ -98,5 +106,5 @@ A handoff is good when a new agent or person, with only the repository and no ch
 
 - Docs, code and comments in English.
 - Branches: `item/<ID>-<slug>`, merged into `main` with `--no-ff` after approval, so verified commits stay in `main`'s history. A red baseline that belongs to no item is fixed on `fix/<slug>` and merged the same way after the owner approves the diff.
-- Commits: `<type>(<ID>): <summary>`, type one of `feat`, `fix`, `test`, `docs`, `chore`, `refactor`. An owner approval is a commit whose subject ends with `(approved: <owner>)`: the brief (`docs`) and every test change (`test`).
+- Commits: `<type>(<ID>): <summary>`, type one of `feat`, `fix`, `test`, `docs`, `chore`, `refactor`; lowercase, imperative, under ~60 characters; no names and no trailers (no `Co-Authored-By`). An owner approval is the commit itself, made only after the owner's answer: the brief (`docs(<ID>): add brief`, later `docs(<ID>): update brief …`) and, unless the brief skips G2, the tests (`test(<ID>): …`).
 - Commands: none yet. P1-01 adds the Taskfile (TD §35.1) and lists its commands here.
