@@ -1,0 +1,14 @@
+# Personal agent settings (not shared)
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Build and test output
+/bin/
+*.test
+*.out
+coverage.*

@@ -1,0 +1,12 @@
+{
+  "model": "opus",
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "startup|resume|clear|compact",
+        "hooks": [ { "type": "command", "command": "go run scripts/brief/main.go", "timeout": 60 } ] }
+    ]
+  },
+  "permissions": {
+    "allow": [ "Bash(go run scripts/brief/main.go:*)", "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git show:*)" ]
+  }
+}
