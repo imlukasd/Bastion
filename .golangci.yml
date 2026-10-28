@@ -1,0 +1,72 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - errorlint        # E13
+    - exhaustive       # E9
+    - forbidigo        # E8, E21, E28
+    - funlen           # E11
+    - gochecknoglobals # E5
+    - gochecknoinits   # E5
+    - gocognit         # E11
+    - gocritic         # E37
+    - gosec            # E36
+    - nolintlint       # E40
+    - revive           # E11, E28, E37
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: false
+    forbidigo:
+      forbid:
+        - pattern: ^float(32|64)$
+          msg: "E8: money is int64 minor units, no floating point (TD §1.1)"
+        - pattern: ^strconv\.(ParseFloat|FormatFloat)$
+          msg: "E8: money is int64 minor units, no floating point (TD §1.1)"
+        - pattern: ^time\.(Now|Since|Until)$
+          msg: "E21: business time comes from now() in SQL (TD §1.3)"
+        - pattern: ^context\.(Background|TODO)$
+          msg: "E28: pass the caller's context; tests use t.Context()"
+    funlen:
+      lines: 60
+      statements: -1
+    gocognit:
+      min-complexity: 15
+    gocritic:
+      disable-all: true
+      enabled-checks:
+        - commentedOutCode
+    gosec:
+      includes:
+        - G101
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: context-as-argument
+        - name: exported
+        - name: flag-parameter
+  exclusions:
+    generated: lax
+    rules:
+      - path: _test\.go$
+        linters: [funlen]
+      - path: ^scripts/
+        linters: [forbidigo, funlen, gochecknoglobals, gocognit]
+      - path: ^cmd/
+        linters: [forbidigo]
+        text: "E28"
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/imlukasd/Bastion

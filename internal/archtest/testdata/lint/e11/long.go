@@ -1,0 +1,131 @@
+// Package e11 violates E11: long, complex and flag-switched functions.
+package e11
+
+// Body60 has a 60-line body.
+func Body60() int {
+	n := 0
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	return n
+}
+
+// Body61 has a 61-line body.
+func Body61() int {
+	n := 0
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	n++
+	return n
+}
