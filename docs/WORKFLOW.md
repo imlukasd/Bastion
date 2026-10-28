@@ -10,7 +10,7 @@ The working loop on Bastion, seen from the owner's side: what you type, what the
 | 2 | `start P1-01` (or `fix`, if something is red) | After the report | — |
 | 3 | answers to the `OPEN` decisions (`D1: …; D2–D4: as proposed`) | The agent asks while writing the brief | 2–5 min |
 | 4 | `approve brief` or `changes: …` | The agent shows the finished brief (G1) | 5–10 min |
-| 5 | `ok tests` or `changes: …` | The agent shows the failing tests (G2) | 2–5 min |
+| 5 | `ok tests` or `changes: …` | The agent shows the failing tests (G2); not asked when the brief says `Skip: G2` | 2–5 min |
 | 6 | answers, only when asked | The agent stops on a decision the brief does not make | rare |
 | 7 | `/handoff` | The agent says the implementation is done | — |
 | 8 | `approve` or `changes: …` | The agent shows the item report (G6) | ~15 min |
@@ -29,12 +29,13 @@ start: item branch + claim
 ① brief (strong model) ──► you answer OPEN decisions ──► you: approve brief (G1) ──► commit
                ▼
 ② tests + stubs (strong model) ──► you: ok tests (G2) ──► commit; tests are now locked
+   (Skip: G2 → no ②; the tests come with the code in ③)
                ▼
 ③ implement ── Executor: strong   ──► the strong model, in the main session
              └ Executor: standard ──► implementer subagent (standard model)
                                         └ unclear? stops and asks ──► agent or you answer
                ▼
-④ /handoff: G3 full suite ─► G4 mutations (critical) ─► G5 reviewer (strong model) ─► item report
+④ /handoff: G3 full suite ─► G4 mutations (critical) ─► G5 reviewer (strong model; not with Skip: G5) ─► item report
                ▼
 ⑤ you: approve ──► evidence, NOW, LOG, merge --no-ff into main ──► /clear
    you: changes: … ──► back to ③
@@ -63,16 +64,19 @@ start: item branch + claim
   2. Files is complete and holds nothing extra;
   3. no `OPEN` row is left;
   4. Out of scope keeps neighbouring items out;
-  5. Executor fits the risk (`strong` for critical items and all of Phase 1).
+  5. Executor fits the risk (`strong` for critical items and all of Phase 1);
+  6. the `Skip:` line names only gates this item truly does not need, each with its reason in Decisions (never on a critical item; AGENTS.md › Right-sizing).
 - **You:** `approve brief`, or `changes: …`.
-- **Agent:** commits `docs(P1-01): brief (approved: <you>)`. That commit is the contract: if the brief changes later, `git diff` shows it, and a change beyond Progress and Surprises needs your approval again.
+- **Agent:** commits `docs(P1-01): add brief`. That commit is the contract: if the brief changes later, `git diff` shows it, and a change beyond Progress and Surprises needs your approval again.
 
 ### 4. Tests first (G2)
+
+With `Skip: G2` this step disappears: the tests come with the code in step 5, and you see them in the report.
 
 - **Agent (strong model):** writes the tests of the Test map with stubs from the Contracts, runs them and shows that they fail on assertions, not on compile errors.
 - **You check (2–5 minutes):** the test names match the Test map; the assertions check stored results, not only "no error".
 - **You:** `ok tests`, or `changes: …`.
-- **Agent:** commits `test(P1-01): … (approved: <you>)`. From now on a test changes only in another commit you approved; `-check` fails otherwise.
+- **Agent:** commits `test(P1-01): …`. From now on a test changes only in another commit you approved; `-check` fails otherwise.
 
 ### 5. Implement
 
@@ -84,7 +88,7 @@ start: item branch + claim
 ### 6. Close: gates G3–G5
 
 - **You:** `/handoff` when the agent says the implementation is done.
-- **Agent:** runs the `verify` commands, the baseline, the full suite and the concurrency tests under `-race -count=20`; for critical items removes each guard, shows the test that fails and restores it; runs the `reviewer` (strong model, fresh context) and fixes every blocker; writes the item report into the brief's Outcome and shows it.
+- **Agent:** runs the `verify` commands, the baseline, the full suite and the concurrency tests under `-race -count=20`; for critical items removes each guard, shows the test that fails and restores it; runs the `reviewer` (strong model, fresh context; not with `Skip: G5`) and fixes every blocker; writes the item report into the brief's Outcome and shows it.
 
 ### 7. Approve (G6)
 
@@ -102,7 +106,7 @@ start: item branch + claim
 | --- | --- |
 | The context fills up, or you stop for the day | `/handoff` (unfinished) → `/clear` → `/catchup` resumes from NOW.md and the brief's Progress |
 | The implementer stops with a question the brief or spec answers | The main session answers, records a brief gap under Surprises, hands the step back |
-| The implementer stops on a new decision or a spec conflict | You decide; a change to the brief is committed as `docs(<ID>): brief update (approved: <you>)`, a spec change goes into docs/01–04 (and an AD) |
+| The implementer stops on a new decision or a spec conflict | You decide; a change to the brief is committed as `docs(<ID>): update brief …` after your approval, a spec change goes into docs/01–04 (and an AD) |
 | The same step fails twice | The strong model takes the step over; the report says so |
 | A test or a path outside Files was touched | `-check` fails; the agent reverts that work and redoes the step |
 | You reject the report | `changes: …` → back to implementation; no evidence is written |
@@ -153,7 +157,7 @@ Saving happens where the work is mechanical and fully specified; the decisions, 
 | `go run scripts/brief/main.go` | The session brief |
 | `go run scripts/brief/main.go -plan` | Every item by phase, with status and evidence |
 | `go run scripts/brief/main.go -item P1-06` | One item in full |
-| `go run scripts/brief/main.go -check` | Plan and evidence validation; on an item branch also brief → tests → code order, the test lock and the brief's Files (exit 1 on errors) |
+| `go run scripts/brief/main.go -check` | Plan and evidence validation; on an item branch also brief → tests → code order, the test lock, the `Skip:` line and the brief's Files (exit 1 on errors) |
 | `git log --oneline main..HEAD` | The commits of the current item |
 | `git diff --stat main...HEAD` | The scope of the current item |
 | `/catchup`, `/handoff`, `/clear`, `/context`, `/model` | Claude Code: triage, close, fresh context, context use, model choice |
@@ -163,4 +167,4 @@ Saving happens where the work is mechanical and fully specified; the decisions, 
 - One item per session, and `/clear` after every merge: a fresh context costs less per turn and keeps the agent focused.
 - Use the session brief and `-item` instead of reading files whole; the spec is read by section, and the item brief quotes what the executor needs.
 - A complete brief is what lets the standard model implement; a gap found during implementation costs more than a minute spent on the brief.
-- Save tokens on reading and implementing, never on the brief, the tests or the gates: G1–G6 always run.
+- Save tokens on reading, on implementing and on steps an item does not need (AGENTS.md › Right-sizing: G2 and G5 on items that are not critical, a short brief for a simple item); never on the brief, on tests that guard correctness, or on G1, G3 and G6.

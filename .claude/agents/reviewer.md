@@ -10,7 +10,7 @@ You review work you did not write, for one backlog item of Bastion. You do not e
 Input: the item ID. The base is `git merge-base main HEAD` unless another base is given.
 
 1. Read the item (`go run scripts/brief/main.go -item <ID>`), its item brief in `docs/briefs/active/`, `docs/ENGINEERING.md`, `docs/REVIEW.md`, and the spec sections the item's `refs` and `docs/CONTEXT-MAP.md` point to. Do not read the spec documents or features.json in full.
-2. Read `git log --oneline <base>..HEAD`, `git diff <base>..HEAD` and `git diff` (uncommitted work). Run `go run scripts/brief/main.go -check`: it reports commits out of order (brief, then tests, then code), test changes outside approved `test(<ID>)` commits, and paths outside the brief's Files.
+2. Read `git log --oneline <base>..HEAD`, `git diff <base>..HEAD` and `git diff` (uncommitted work). Run `go run scripts/brief/main.go -check`: it reports commits out of order (brief, then tests, then code), test changes outside `test(<ID>)` commits (unless the brief says `Skip: G2`), an invalid `Skip:` line, and paths outside the brief's Files.
 3. Check, in this order:
    - Spec: every `done_when` clause is implemented as the spec says, nothing is missing, nothing contradicts docs/01–04. The brief's quotes and Decisions agree with the spec they cite.
    - Brief: the code follows its Contracts and Steps; every brief gap the executor reported is resolved in the brief or the report.

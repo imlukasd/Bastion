@@ -9,15 +9,15 @@ The **session brief** is something else: the orientation that `go run scripts/br
 | When | What happens | Commit |
 | --- | --- | --- |
 | After `chore(<ID>): start` | The writer (strong model) drafts `active/<ID>-<slug>.md` from the template, asks the owner the decisions that are theirs, and settles technical unknowns with spikes outside the repository (a scratch directory; never committed). | none (draft) |
-| Owner answers `approve brief` (G1) | The Definition of Ready holds; the `Approved:` field is filled in. | `docs(<ID>): brief (approved: <owner>)` |
-| Implementation | The executor updates nothing in the brief; the writer adds Progress and Surprises. Changing any other section needs the owner's approval again. | `docs(<ID>): brief update (approved: <owner>)` |
+| Owner answers `approve brief` (G1) | The Definition of Ready holds; the `Approved:` field is filled in. | `docs(<ID>): add brief` |
+| Implementation | The executor updates nothing in the brief; the writer adds Progress and Surprises. Changing any other section needs the owner's approval again. | `docs(<ID>): update brief …` |
 | Owner answers `approve` (G6) | Outcome = the item report; the file moves to `completed/`. | part of `chore(<ID>): done` |
 
-The slug is the item branch's (`item/<ID>-<slug>`). An approval is always a commit whose subject ends with `(approved: <owner>)`, written right after the owner's answer.
+The slug is the item branch's (`item/<ID>-<slug>`). An approval is the commit itself, made right after the owner's answer; a `docs(<ID>)` commit that names the brief and changes it is an approved version. Commit subjects carry no names (AGENTS.md › Conventions).
 
 ## Definition of Ready (the owner checks it at G1)
 
-1. Goal numbers every `done_when` clause, and Test map names a test for each.
+1. Goal numbers every `done_when` clause, and Test map names a test for each (or a verify command, when a test would only re-check what the build or `task check` already catches).
 2. Spec quotes every rule the item needs, with its section, so the executor never opens docs/01–04.
 3. Decisions has no row left `OPEN`; each technical unknown was settled by a spike and the row says how.
 4. Files lists every path that will be created or changed.
@@ -27,6 +27,7 @@ The slug is the item branch's (`item/<ID>-<slug>`). An approval is always a comm
 8. Stop rules name the situations where the executor must stop instead of choosing.
 9. Executor fits the risk (below).
 10. Critical items: Locks in the product's lock order (TD §18.1, §28.1), a Race table and the planned Mutations.
+11. `Skip:` names only gates the item does not need (G2, G5; never on a critical item), each with its reason in Decisions (AGENTS.md › Right-sizing).
 
 ## Choosing the executor
 
@@ -39,13 +40,12 @@ The writer proposes, the owner confirms at G1. The strong model always writes th
 
 On an item branch, `go run scripts/brief/main.go -check` (part of `task check`) fails on:
 
-- a `test`, `feat`, `fix` or `refactor` commit before `docs(<ID>): brief (approved: …)`;
-- a `feat`, `fix` or `refactor` commit before the first `test(<ID>): … (approved: …)`;
-- a change to a test (`*_test.go` or anything under `testdata/`) in a commit that is not `test(<ID>): … (approved: …)`;
+- a `test`, `feat`, `fix` or `refactor` commit before the approved brief (`docs(<ID>): add brief`);
+- unless the brief says `Skip: G2`: a `feat`, `fix` or `refactor` commit before the first `test(<ID>): …`, and after it a change to a test (`*_test.go` or anything under `testdata/`) in a commit that is not `test(<ID>): …`;
 - a changed path, committed or not, outside the Files of the last approved brief (always allowed: the item's brief, `docs/progress/NOW.md`, `LOG.md`, `features.json`);
-- an approved brief without a required section or the `Executor:` line, with a decision still `OPEN`, or with `Executor: standard` on a critical item.
+- an approved brief without a required section or the `Executor:` line, with a decision still `OPEN`, with `Executor: standard` on a critical item, or with a `Skip:` gate other than G2 and G5 or any skip on a critical item.
 
-Files are read from the last approved brief commit, not from the working copy: widening the scope takes a new approval.
+Files and `Skip:` are read from the last approved brief commit, not from the working copy: changing them takes a new approval.
 
 ## Template
 
@@ -54,7 +54,8 @@ Items that are not critical leave out Locks, Race table and Mutations. Keep ever
 ```markdown
 # <ID> — <title>
 
-Executor: strong | standard · Owner: <name> · Started: YYYY-MM-DD · Approved: YYYY-MM-DD by <owner>
+Executor: strong | standard · Owner: <name> · Started: YYYY-MM-DD · Approved: YYYY-MM-DD
+Skip: none | G2, G5 (items that are not critical; reasons in Decisions)
 
 ## Goal
 The item's `done_when`, one clause per line:
