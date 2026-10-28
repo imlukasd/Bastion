@@ -67,9 +67,18 @@
       "depends_on": [],
       "done_when": "go.mod (Go >= 1.25) and the TD §2 directory layout exist; Taskfile.yml has check (build, vet, golangci-lint, govulncheck, unit tests, go run scripts/brief/main.go -check; prints failures only), test (the full suite), up, down, migrate and chaos; golangci-lint enables the rules ENGINEERING.md marks lint; task check passes on the skeleton; AGENTS.md › Conventions lists the commands.",
       "verify": ["task check"],
-      "status": "in_progress",
+      "status": "done",
       "owner": "Claude",
-      "evidence": null
+      "evidence": {
+        "date": "2026-10-28",
+        "commit": "4ddf130",
+        "results": [
+          { "command": "task check", "outcome": "pass", "output": "check OK" }
+        ],
+        "review": "reviewer CHANGES NEEDED, 0 blockers; major (E9/E13/E28 lint-only gaps) fixed by D13 in 4ddf130, minors fixed in af91eb6 or recorded in the report",
+        "report": "docs/briefs/completed/P1-01-skeleton.md",
+        "approved_by": "Lukas"
+      }
     },
     {
       "id": "P1-02",

@@ -309,6 +309,7 @@ Stop and report instead of choosing when:
 - 2026-10-28 Step 7 (partial): `task check` → `check OK` (8 s); `go run scripts/brief/main.go -check` → `plan OK, item P1-01 OK`. `task test` → FAIL twice: `fork/exec …\go-build…\archtest.test.exe: An Application Control policy has blocked this file.`; every other package passes (`scripts/check` ok under `-race`). Stopped by the stop rule; waiting for the owner (NOW.md › Open questions).
 - 2026-10-28 Owner: G3 accepted with the Smart App Control exception (the archtest `-race` test binary, built with `go test -race -c`, passed both tests when run from its folder; every other package passes under `-race`).
 - 2026-10-28 G5 round 1: CHANGES NEEDED, no blocker, 1 major (D13) and 6 minors. Fixed in `af91eb6`: lint_test handles the `strconv.Atoi` error, and a forbidigo issue in `clean/` now reaches the diff instead of stopping the test. D13 (owner chose to enable noctx and add review marks): noctx enabled, fixture `e28/noctx.go` (`e28/noctx.go:7 noctx` expected), ENGINEERING.md E9/E13/E28 marked "lint, review", E11 reworded to "at most". `golangci-lint run ./...` → `0 issues.`; `go test -count=1 -v ./internal/archtest/` → both PASS (26 expected issues).
+- 2026-10-28 Owner: `approve`. Evidence at 4ddf130; brief moved to completed; merged into `main` with `--no-ff`.
 
 ## Surprises
 - 2026-10-28: Go 1.25 is out of support (current: 1.27.3, 1.26.10) and govulncheck flags its standard library; the latest tools need Go >= 1.26 (D2).
@@ -321,3 +322,28 @@ Stop and report instead of choosing when:
 - 2026-10-28 (Step 1): in PowerShell, `-modfile=tools.mod` reaches the go command as `-modfile=tools` (PowerShell splits the argument at the dot); run such commands from bash, cmd or task, or quote the argument.
 
 ## Outcome
+
+## Item report — P1-01 Repository skeleton: go.mod, layout, Taskfile, lint
+
+Writer's assessment: ready for approval
+
+0. Executor: strong (main session); no implementer runs. Stops: Step 7, Smart App Control blocked a test binary (stop rule) → owner accepted G3 with that exception; Step 5, invalid YAML in the Contracts Taskfile → answered by quoting (Surprises); D13, noctx in `scripts/brief` → answered by D9 (Surprises). Skipped gates: G2 (D12: a tooling item with no invariant; the tests came with the code). G4: not applicable (not critical).
+1. Scope: `git diff --stat main...HEAD` → 88 files, +2545 −21. Core: `.golangci.yml`, `internal/archtest/lint_test.go` and `testdata/lint/**`, `scripts/check/main.go` and its test, `Taskfile.yml`, `go.mod`, `tools.mod` and `tools.sum` (tool pins), 54 skeleton `doc.go`/`main.go` files, AGENTS.md, ENGINEERING.md. Every path is in Files: `-check` → `plan OK, item P1-01 OK`.
+   Tests changed after they were first written: `internal/archtest/lint_test.go` in `af91eb6` (G5 minors) and `4ddf130` (the noctx expected issue, D13); G2 skipped.
+2. Traceability:
+   | Clause | Test or verify | Result |
+   | --- | --- | --- |
+   | 1 go.mod, Go >= 1.25 | `go list -m`, `go mod edit -json` | `github.com/imlukasd/Bastion`; `"Go": "1.27.0"`, `"Toolchain": "go1.27.3"` |
+   | 2 TD §2 layout | `go build ./...`, `go list ./...`, `.gitkeep` count | no output; 56 packages; 6 `.gitkeep` |
+   | 3 check runs the six steps | `scripts/check/main_test.go` › `TestBaseline_Steps` | PASS |
+   | 4 prints failures only | › `TestRun_PassingStepsPrintOnlyCheckOK`, `TestRun_FailingStepPrintsItsOutputAndStops`; live: broken file → `FAIL build: go build ./...` + output | PASS |
+   | 5 test, up, down, migrate, chaos | `task --list-all`, `task up` | six tasks with descriptions; message on stderr, command exits 1 (task: 201) |
+   | 6 lint rules enabled | `internal/archtest/lint_test.go` › `TestLint_RulesMarkedLintHaveFixtures`, `TestLint_FixturesReportExpectedIssues` | PASS (26 expected issues, `clean` none) |
+   | 7 task check passes | `task check` | `check OK` |
+   | 8 AGENTS.md lists the commands | review of AGENTS.md › Conventions | names the six tasks |
+3. Guards: no invariant in this item. The lint rules guard later items: each lint-marked rule has a fixture, and loosening `exhaustive` or `funlen` made `TestLint_FixturesReportExpectedIssues` fail (Progress, Step 3).
+4. Verify at `4ddf130`: `task check` → `check OK`; `go run scripts/brief/main.go -check` → `plan OK, item P1-01 OK`; `golangci-lint run ./...` → `0 issues.`; `go test -count=1 -v ./internal/archtest/` → 2 PASS; `go test ./scripts/check/` → `ok`. `task test` → blocked twice by Smart App Control on the `-race` build of `archtest.test.exe`, every other package `ok` under `-race`; the same binary built with `go test -race -c` → 2 PASS (owner accepted). No concurrency tests in this item.
+5. Spec: no deviation from docs/01–04. ENGINEERING.md: E9, E13, E28 now "lint, review"; E11 says "at most 60 lines, cognitive complexity at most 15" (D13, owner).
+6. Decisions and brief gaps: D13 (owner). Taskfile placeholders single-quoted (YAML). task exits 201 for a failing command, not 1; D10's purpose holds and `task -x` passes 1. Step 2 counted 55 packages, 56 after Step 4 adds `scripts/check`. `scripts/` exempt from noctx (D9). PowerShell splits `-modfile=tools.mod`; use bash, cmd or task.
+7. Review: `reviewer` round 1 CHANGES NEEDED, 0 blockers. Major (E9/E13/E28 lint only, gaps unchecked) → D13, fixed in `4ddf130`. Minors: `strconv.Atoi` error discarded in lint_test (E13) → fixed `af91eb6`; forbidigo in `clean/` stopped the test → fixed `af91eb6`; E11 limits off by one → E11 reworded (D13); aliased `time` import passes forbidigo (E21) → D8, covered by review; LOG.md reason for the tool dependencies (E39) and NOW.md → this handoff; brief gaps → §6.
+8. Follow-ups: Smart App Control (NOW.md › Open questions). Next item: P1-02 Local stack (Compose, two PostgreSQL databases, Redis, migrations); it needs the Docker daemon running.
