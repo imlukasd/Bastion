@@ -1,0 +1,29 @@
+version: '3'
+
+silent: true
+
+tasks:
+  check:
+    desc: "Baseline: build, vet, golangci-lint, govulncheck, unit tests (-short), plan check; prints failures only"
+    cmds:
+      - go run ./scripts/check
+  test:
+    desc: "Full suite with the race detector (TD §34.1)"
+    cmds:
+      - go test -race -count=1 ./...
+  up:
+    desc: "Start the local stack (P1-02)"
+    cmds:
+      - 'echo "task up: not implemented yet (P1-02)" >&2; exit 1'
+  down:
+    desc: "Stop the local stack (P1-02)"
+    cmds:
+      - 'echo "task down: not implemented yet (P1-02)" >&2; exit 1'
+  migrate:
+    desc: "Apply the Pay and Tickets migrations (P1-02)"
+    cmds:
+      - 'echo "task migrate: not implemented yet (P1-02)" >&2; exit 1'
+  chaos:
+    desc: "Run chaos scenarios, all or one: task chaos -- C4 (P2-04)"
+    cmds:
+      - 'echo "task chaos: not implemented yet (P2-04)" >&2; exit 1'

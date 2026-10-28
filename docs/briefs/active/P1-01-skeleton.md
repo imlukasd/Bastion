@@ -301,10 +301,14 @@ Stop and report instead of choosing when:
 - 2026-10-28 Step 2: `go build ./...` and `go vet ./...` → no output; `go list ./...` → 55 packages (the 54 skeleton packages + `scripts/brief`; the brief's 56 counts `scripts/check`, which Step 4 adds); 6 untracked `.gitkeep` files; gofmt clean.
 - 2026-10-28 Step 3: `golangci-lint config verify` → exit 0; `golangci-lint run ./...` → `0 issues.`; `go test -count=1 -v ./internal/archtest/` → both tests PASS (fixtures: exactly the 25 expected issues, nothing in `clean`, the 60-line body not reported); with `-short` the fixture test skips. Sanity check: `default-signifies-exhaustive: true` and `funlen lines: 61` → `TestLint_FixturesReportExpectedIssues` FAIL naming `e09/status.go:27 exhaustive` and `e11/long.go:69 funlen`; restored.
 - 2026-10-28 Step 4: `go test -count=1 ./scripts/check/` → `ok` (3 tests); `go list ./...` → 56 packages. errcheck required the runner's writes to be checked (E13): a failed write is returned as `write <step> output: …` / `write result: …`. An empty step output adds no extra newline. `go run ./scripts/check` on the tree → `check OK` in 13 s; with a temporary broken file → `FAIL build: go build ./...` + the compiler output, exit 1, later steps not run (`go run` adds its own `exit status 1` line); file removed.
+- 2026-10-28 Step 5: `task --list-all` → chaos, check, down, migrate, test, up, each with its description; `task up` → `task up: not implemented yet (P1-02)` on stderr, the command exits 1 (`task: Failed to run task "up": exit status 1`); same for down, migrate, chaos and `task chaos -- C4`.
 
 ## Surprises
 - 2026-10-28: Go 1.25 is out of support (current: 1.27.3, 1.26.10) and govulncheck flags its standard library; the latest tools need Go >= 1.26 (D2).
 - 2026-10-28: the go command's automatic toolchain download is unusable here: Windows Application Control blocks the downloaded `asm.exe` on every run (compile and link pass). The installed Go under Program Files is not blocked.
 - 2026-10-28: switching toolchains during `go get -tool -modfile=…` fails with "-modfile cannot be used with commands that ignore the current module"; with a matching local Go it works.
+- 2026-10-28 (brief gap, Step 5): the Contracts Taskfile is invalid YAML: the plain scalar `echo "task up: not …"` contains `: `, so task 3.54.0 reads it as a mapping ("invalid keys in command"). Fixed by single-quoting each placeholder command; the command text and its behavior are unchanged.
+- 2026-10-28 (Step 5): task reports a failing command with its own exit code 201, not the command's 1; `task -x <name>` passes the command's code through. D10's purpose (a placeholder never exits 0) holds either way.
+- 2026-10-28 (Step 1): in PowerShell, `-modfile=tools.mod` reaches the go command as `-modfile=tools` (PowerShell splits the argument at the dot); run such commands from bash, cmd or task, or quote the argument.
 
 ## Outcome
