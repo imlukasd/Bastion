@@ -15,11 +15,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/modules/redis"
+	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/imlukasd/Bastion/internal/platform/db/migrate"
 )
@@ -29,6 +31,9 @@ const (
 	PostgresImage = "postgres:18.6-alpine3.24"
 	RedisImage    = "redis:8.10.3-alpine"
 )
+
+// startupTimeout bounds how long a container may take to become ready.
+const startupTimeout = time.Minute
 
 // TrackCommitTimestamp is the server flag both the stack and the tests pass (TD §1.3).
 const TrackCommitTimestamp = "track_commit_timestamp=on"
@@ -165,7 +170,14 @@ func migrateDir(t testing.TB, connURL, dir string) {
 func StartRedis(t testing.TB) string {
 	t.Helper()
 	skipShort(t)
-	ctr, err := redis.Run(t.Context(), RedisImage)
+	// The module waits only 10 s for the port; under -race with several
+	// containers starting at once that is too short, so use PostgreSQL's 60 s.
+	ctr, err := redis.Run(t.Context(), RedisImage,
+		testcontainers.WithWaitStrategy(
+			wait.ForListeningPort("6379/tcp").WithStartupTimeout(startupTimeout),
+			wait.ForLog("* Ready to accept connections").WithStartupTimeout(startupTimeout),
+		),
+	)
 	if ctr != nil {
 		terminateOnCleanup(t, ctr)
 	}
