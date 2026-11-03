@@ -4,7 +4,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 - **Updated:** 2026-11-03, Claude with Lukas (P1-02 started)
 - **Phase:** 1 Foundations, in progress (1/15 done)
-- **Active item:** P1-02 Local stack (brief being drafted)
+- **Active item:** P1-02 Local stack (brief approved, implementing)
 - **Branch:** item/P1-02-local-stack
 
 ## State
@@ -16,7 +16,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 ## Next step
 
-1. Draft docs/briefs/active/P1-02-local-stack.md (G1): refs TD §1.3, §1.4, §33, ARCH §12.1, AD-03, AD-15; ask the owner the OPEN decisions; wait for `approve brief`.
+1. Brief approved (G1, `Skip: G2`). Implement Steps 1–5 of docs/briefs/active/P1-02-local-stack.md (Executor: strong); first make Docker Desktop pull images again (Surprises).
 
 ## Open questions (owner decides)
 
