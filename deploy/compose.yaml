@@ -1,0 +1,42 @@
+# Local stack (ARCH §12.1). Only the default-profile stores exist so far; the
+# application services, edge, simulators and the observability, chaos and load
+# profiles arrive with their items. Local use only: fixed passwords, ports bound
+# to 127.0.0.1 (P1-02 D7).
+name: bastion
+
+services:
+  postgres:
+    # One server, two databases (ARCH §12.2). The 18 image keeps its data under
+    # /var/lib/postgresql/18/docker, so the volume mounts /var/lib/postgresql.
+    image: postgres:18.6-alpine3.24
+    # TD §1.3: track_commit_timestamp = on in both databases (W3 detection).
+    # The setting is cluster-wide and needs a restart, hence a server flag.
+    command: ["postgres", "-c", "track_commit_timestamp=on"]
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+      # Runs once, on an empty volume: after changing it, `task down -- -v`.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Over TCP, which the image's init server does not listen on, so the
+      # service is healthy only after the init scripts have run.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "bastion_tickets"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:8.10.3-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  pgdata:

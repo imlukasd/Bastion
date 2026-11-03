@@ -192,6 +192,8 @@ Stop and report instead of choosing when:
 ## Progress
 - 2026-11-03 — brief drafted. Spikes (outside the repo): testcontainers v0.44.0 with `postgres:16-alpine` + the init SQL of D4: roles and databases created, `track_commit_timestamp` on, cross-database connect denied (42501), app role denied `CREATE` on `public` (42501), multi-statement `Exec` as owner works; `redis:7-alpine` reachable. govulncheck on pgx v5.12.0 + go-redis v9.23.0 + testcontainers v0.44.0: no vulnerabilities. Image tags of D1/D2 read from Docker Hub; pulling them failed (see Surprises).
 
+- 2026-11-03 — step 1 done (strong); verify query → `180006|on|bastion_pay,bastion_tickets|pay_app,pay_owner,tickets_app,tickets_owner`; `redis_version:8.10.3`; `PGDATA=/var/lib/postgresql/18/docker` inside the `pgdata` volume; `task down` then `task up` → healthy again.
+
 ## Surprises
 - 2026-11-03: Docker Desktop (WSL2) cannot pull images: every blob download through its proxy `http.docker.internal:3128` ends in `EOF` (postgres:18-alpine, redis:8-alpine, testcontainers/ryuk). Locally cached images run. Step 1 needs the owner to fix image pulls first.
 - 2026-11-03: Docker Desktop updated 4.57 → 4.97 (Engine 29.9.2); pulls still fail at the same proxy (`auth.docker.io … EOF`), while WSL reaches Docker Hub directly (HTTP 200). Workaround: images fetched with `crane` v0.20.6 over the WSL network and `docker load`-ed (`postgres:18.6-alpine3.24`, `redis:8.10.3-alpine`, `testcontainers/ryuk:0.14.0`, the reaper testcontainers v0.44.0 uses). The proxy fix stays with the owner.
