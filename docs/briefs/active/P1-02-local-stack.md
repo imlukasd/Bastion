@@ -34,7 +34,7 @@ The item's `done_when`, one clause per line:
 | D4 | Where roles and databases are created | `deploy/postgres/init/10-bastion.sql`, run as superuser by the image's `docker-entrypoint-initdb.d` on first start, and by the test helper through the same file. Creates `pay_owner`, `pay_app`, `tickets_owner`, `tickets_app`, `bastion_pay` (owner `pay_owner`), `bastion_tickets` (owner `tickets_owner`). | writer | Clause 1 needs the databases after `task up` alone; one file for Compose and tests. Init runs only on an empty volume: a changed file needs `task down -- -v` (documented in AGENTS.md). |
 | D5 | Which roles now | Owner and app roles only. `*_auditor` and `*_ops` are created by the items that first use them (P1-14 auditor; ops with `bastionctl`). | writer | Nothing uses them yet; their grants depend on tables that do not exist. |
 | D6 | Database isolation | `REVOKE ALL ON DATABASE … FROM PUBLIC`; `CONNECT` only to the product's own roles. `pay_*` cannot connect to `bastion_tickets` and vice versa (SQLSTATE 42501, spiked). | writer | ARCH §7.1 / ARCH §12.2: one company's database per product; no transaction spans both. Cheap, and a test proves it. |
-| D7 | Local credentials | Password = role name (`pay_app`/`pay_app`, superuser `postgres`/`postgres`); ports bound to `127.0.0.1` only (5432, 6379; both free on 2026-11-03). Credentials appear only in `deploy/`, `Taskfile.yml` and as `role:role` built at run time in `dbtest` (no literal, so gosec G101 stays quiet). | writer | Local-only stack; production secrets come from configuration (E36, ARCH §12.2). |
+| D7 | Local credentials | Password = role name (`pay_app`/`pay_app`, superuser `postgres`/`postgres`); ports bound to `127.0.0.1` only: PostgreSQL on host port 55432 (container 5432), Redis on 6379. Host port 55432 because a native PostgreSQL on the Windows host holds 5432 (found at Step 1; owner chose 55432 on 2026-11-03). Credentials appear only in `deploy/`, `Taskfile.yml` and as `role:role` built at run time in `dbtest` (no literal, so gosec G101 stays quiet). | writer | Local-only stack; production secrets come from configuration (E36, ARCH §12.2). |
 | D8 | First migration | `0001_baseline.sql` per product, run as the owner: `REVOKE ALL ON SCHEMA public FROM PUBLIC;` and `ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;` | writer | Gives clause 2 a real migration and sets the privilege convention P1-05 needs: functions (including `SECURITY DEFINER` ones, TD §8.3) are executable only where granted; app roles see only module schemas granted to them. |
 | D9 | `track_commit_timestamp` | Server flag `-c track_commit_timestamp=on` in Compose `command` and in the test container. It is cluster-wide, so both databases have it. | writer | Needs a restart to change; a flag avoids a custom image. A test asserts it, and a test checks that Compose and `dbtest` use the same images and flag. |
 | D10 | Integration test infrastructure | testcontainers-go v0.44.0 (`modules/postgres`, `modules/redis`) in `internal/platform/db/dbtest`; Go clients pgx v5.12.0 (AD-15) and go-redis v9.23.0. Integration tests skip under `-short` (so `task check` needs no Docker) and fail, not skip, when Docker is missing in a full run. | writer | E29 and TD §34.1. Spiked: container with init script up in ~4.5 s; govulncheck on pgx + go-redis + testcontainers: "No vulnerabilities found"; testcontainers adds ~50 indirect test-only modules. |
@@ -64,7 +64,7 @@ Delete:
 ## Contracts
 
 **Compose** (`deploy/compose.yaml`, project `name: bastion`, default profile):
-- `postgres`: image `postgres:18.6-alpine3.24`; `command: ["postgres", "-c", "track_commit_timestamp=on"]`; env `POSTGRES_PASSWORD: postgres`; ports `127.0.0.1:5432:5432`; volumes `pgdata:/var/lib/postgresql`, `./postgres/init:/docker-entrypoint-initdb.d:ro`; healthcheck `pg_isready -h 127.0.0.1 -U postgres -d bastion_tickets` (TCP, so healthy only after init finished).
+- `postgres`: image `postgres:18.6-alpine3.24`; `command: ["postgres", "-c", "track_commit_timestamp=on"]`; env `POSTGRES_PASSWORD: postgres`; ports `127.0.0.1:55432:5432`; volumes `pgdata:/var/lib/postgresql`, `./postgres/init:/docker-entrypoint-initdb.d:ro`; healthcheck `pg_isready -h 127.0.0.1 -U postgres -d bastion_tickets` (TCP, so healthy only after init finished).
 - `redis`: image `redis:8.10.3-alpine`; ports `127.0.0.1:6379:6379`; healthcheck `redis-cli ping`. No volume.
 - Named volume `pgdata`. No other services (they arrive with their items).
 
@@ -114,7 +114,7 @@ func Up(ctx context.Context, conn *pgx.Conn, ms []Migration) ([]int, error)
 **Taskfile**:
 - `up`: `docker compose -f deploy/compose.yaml up -d --wait` (returns when both services are healthy).
 - `down`: `docker compose -f deploy/compose.yaml down {{.CLI_ARGS}}` (`task down -- -v` also drops the data volume).
-- `migrate`: runs `scripts/migrate` for `db/pay/migrations` with `$PAY_MIGRATE_URL`, then `db/tickets/migrations` with `$TIX_MIGRATE_URL`; defaults `postgres://pay_owner:pay_owner@localhost:5432/bastion_pay?sslmode=disable` and `postgres://tickets_owner:tickets_owner@localhost:5432/bastion_tickets?sslmode=disable`.
+- `migrate`: runs `scripts/migrate` for `db/pay/migrations` with `$PAY_MIGRATE_URL`, then `db/tickets/migrations` with `$TIX_MIGRATE_URL`; defaults `postgres://pay_owner:pay_owner@localhost:55432/bastion_pay?sslmode=disable` and `postgres://tickets_owner:tickets_owner@localhost:55432/bastion_tickets?sslmode=disable`.
 
 **Package `internal/platform/db/dbtest`** (doc: real PostgreSQL and Redis for integration tests, E29):
 ```go
@@ -147,9 +147,9 @@ Each `Start*`: `t.Skip` when `testing.Short()`; `t.Fatal` on any error (Docker m
 
 ## Steps
 1. Compose, init SQL, Taskfile `up`/`down`; delete `deploy/.gitkeep`. Verify: `task up` → exit 0; `docker compose -f deploy/compose.yaml exec -T postgres psql -U postgres -Atc "select current_setting('server_version_num'), current_setting('track_commit_timestamp'), (select string_agg(datname, ',' order by datname) from pg_database where datname like 'bastion_%'), (select string_agg(rolname, ',' order by rolname) from pg_roles where rolname ~ '^(pay|tickets)_')"` → `180006|on|bastion_pay,bastion_tickets|pay_app,pay_owner,tickets_app,tickets_owner`; `docker compose -f deploy/compose.yaml exec -T redis redis-cli INFO server | grep redis_version` → `redis_version:8.10.3`.
-2. `migrate` package with `migrate_test.go` (Load) and `migrate_integration_test.go` (Up); go.mod adds pgx and testcontainers. Verify: `go test ./internal/platform/db/migrate/...` → ok; with `-short` the integration tests skip.
+2. `migrate` package with `migrate_test.go` (Load) and `migrate_integration_test.go` (Up), and the PostgreSQL part of `dbtest` (`Postgres`, `URL`, `StartPostgres`, `StartPostgresUnmigrated`) that those tests use; go.mod adds pgx and testcontainers. Verify: `go test ./internal/platform/db/migrate/...` → ok; with `-short` the integration tests skip.
 3. Baseline migrations (delete their `.gitkeep`), `scripts/migrate`, Taskfile `migrate`. Verify: `task migrate` → `migrate db/pay/migrations: applied 0001` and the same for tickets; again → `up to date` twice.
-4. `dbtest` and `stack_test.go`; go.mod adds go-redis. Verify: `go test ./internal/platform/db/...` → ok.
+4. `dbtest.StartRedis` and `stack_test.go`; go.mod adds go-redis. Verify: `go test ./internal/platform/db/...` → ok.
 5. AGENTS.md Commands; LOG.md dependency reasons (E39) at handoff. Verify: `task check` → `check OK`; `task test` → all packages ok.
 
 ## Test map
@@ -194,6 +194,9 @@ Stop and report instead of choosing when:
 
 ## Surprises
 - 2026-11-03: Docker Desktop (WSL2) cannot pull images: every blob download through its proxy `http.docker.internal:3128` ends in `EOF` (postgres:18-alpine, redis:8-alpine, testcontainers/ryuk). Locally cached images run. Step 1 needs the owner to fix image pulls first.
+- 2026-11-03: Docker Desktop updated 4.57 → 4.97 (Engine 29.9.2); pulls still fail at the same proxy (`auth.docker.io … EOF`), while WSL reaches Docker Hub directly (HTTP 200). Workaround: images fetched with `crane` v0.20.6 over the WSL network and `docker load`-ed (`postgres:18.6-alpine3.24`, `redis:8.10.3-alpine`, `testcontainers/ryuk:0.14.0`, the reaper testcontainers v0.44.0 uses). The proxy fix stays with the owner.
+- 2026-11-03: Step 1 — host port 5432 is held by a native PostgreSQL on the Windows host (PID 9272, listening on 0.0.0.0 and ::); the D7 port check had looked only inside WSL. Owner chose host port 55432; brief updated (D7, Contracts).
+- 2026-11-03: Brief gap — Step 2's integration tests use `dbtest.StartPostgresUnmigrated`, which Step 4 created. Owner approved moving the PostgreSQL part of `dbtest` into Step 2 (same Files and Contracts).
 
 ## Outcome
 When done: the item report (docs/REVIEW.md › Item report).
