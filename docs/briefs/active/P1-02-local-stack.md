@@ -224,4 +224,35 @@ Stop and report instead of choosing when:
 - 2026-11-03: Flaky `TestStack_RedisVersion` (E33) at G3 rerun: the testcontainers Redis module's fixed 10 s port wait; fixed in `dbtest.StartRedis` (60 s), see Progress.
 
 ## Outcome
-When done: the item report (docs/REVIEW.md › Item report).
+
+## Item report — P1-02 Local stack: Compose with two PostgreSQL databases and Redis; migrations
+
+Writer's assessment: ready for approval.
+
+0. Executor: strong (main session); no implementer runs. Stops: (a) Docker Desktop could not pull images → images loaded with `crane` over the WSL network (owner fixes the proxy); (b) host port 5432 taken by a native PostgreSQL on Windows → owner chose 55432 (brief update 502e768); (c) brief gap, Step 2 needed `dbtest` from Step 4 → owner approved moving it (502e768); (d) G5 findings → owner approved the Contracts update (e28156a). Skipped gates: G2 (D11); G4 not applicable (not critical), three-plus-two mutations run anyway.
+1. Scope: `git diff --stat main...HEAD` → 20 files, +1641 −16. Core: `internal/platform/db/migrate/migrate.go`, `internal/platform/db/dbtest/dbtest.go`, `deploy/compose.yaml`, `deploy/postgres/init/10-bastion.sql`, `db/{pay,tickets}/migrations/0001_baseline.sql`, `scripts/migrate/main.go`, `Taskfile.yml`. Every path is in Files (`-check` → `plan OK, item P1-02 OK`). Tests changed after the first test commit: G2 skipped.
+2. Traceability:
+   | Clause | Test (file › name) | Result |
+   | --- | --- | --- |
+   | 1 | Step 1 verify query on the Compose stack | `180006\|on\|bastion_pay,bastion_tickets\|pay_app,pay_owner,tickets_app,tickets_owner`; `redis_version:8.10.3` |
+   | 1 | `dbtest/stack_test.go › TestStack_PostgresSettings`, `TestStack_RedisVersion`, `TestStack_ImagesMatchCompose` | PASS |
+   | 2 | `task migrate` (fresh volume, then again) | `applied 0001` ×2, then `up to date` ×2 |
+   | 2 | `dbtest/stack_test.go › TestStack_MigrationsApplied`; `migrate/migrate_test.go › TestLoad_*` (4); `migrate/migrate_integration_test.go › TestUp_*` (7) | PASS |
+   | 3 | `dbtest/stack_test.go › TestStack_Roles` | PASS |
+   | 4 | `dbtest/stack_test.go › TestStack_ConnectsToBothDatabasesAndRedis` | PASS |
+3. Guards (E32; item not critical, run anyway):
+   - E23 edited migration, `migrate.go:161` checksum compare → disabled → `TestUp_RefusesEditedMigration` FAIL; restored.
+   - E23 migration and its row in one transaction, `migrate.go:195` `TxStatus() != 'T'` → disabled → `TestUp_RefusesTransactionControl` FAIL (COMMIT, ROLLBACK); restored.
+   - Advisory lock released, `migrate.go:111` → unlock removed → `TestUp_ReleasesLock` FAIL (after success and after failure); restored.
+   - D6 database isolation, `10-bastion.sql:18` → commented out → `TestStack_Roles` FAIL (4 cross-database connects succeed); restored.
+   - D8 function privileges, `db/pay/migrations/0001_baseline.sql:9` → commented out → `TestStack_MigrationsApplied` FAIL; restored.
+   - `ErrUnknownApplied` (`:159`), `ErrOutOfOrder` (`:173`) and rollback of a failed migration (`:187`) have tests (`TestUp_RefusesUnknownApplied`, `TestUp_RefusesOutOfOrder`, `TestUp_FailedMigrationRollsBack`); not mutated.
+4. Verify at dde689b:
+   - `task up` → exit 0, postgres and redis Healthy.
+   - `task migrate` → `migrate db/pay/migrations: applied 0001`, `migrate db/tickets/migrations: applied 0001` (fresh volume).
+   - `go test ./internal/platform/db/...` (`-count=1`) → `ok dbtest 7.3s`, `ok migrate 11.3s`.
+   - `task check` → `check OK`. `task test` (`-race`) → archtest, dbtest, migrate, scripts/check ok; 5 consecutive runs green after the Redis wait fix.
+5. Spec: no deviation. D3 (the in-house runner) fills a gap AD-15 leaves open; no docs/01–04 change needed.
+6. Decisions during the item: host port 55432 (owner); Step 2/4 order (owner); `ErrTransactionControl` and the `dbtest` helpers in Contracts (owner, G5); x/crypto v0.56.0 and moby/go-archive v0.3.0 raised for govulncheck (writer, E39 reason in LOG.md); Redis wait 60 s in `dbtest` (writer, E33).
+7. Review: reviewer APPROVE. Major: E31/E32 lock release untested → `TestUp_ReleasesLock`; E23 a file with COMMIT/ROLLBACK breaks the one-transaction guarantee → `ErrTransactionControl` + test + AGENTS.md rule. Minor: E39 LOG reasons → handoff LOG entry; Progress missing step 4 and mutations → added; sort test cannot fail → limit stated in a comment, sort kept; two tests missing stored-fact assertions → added; `dbtest` exports beyond Contracts → Contracts updated (owner); `url` shadowing → `connURL`/`redisURL`; `scripts/migrate` lost the versions applied before a failure → reported. All resolved.
+8. Follow-ups: owner fixes Docker Desktop's proxy (`http.docker.internal:3128` → EOF on pulls) before items that need new images; the writer committed twice with a red baseline (amended at once, Surprises); next item P1-03 Platform basics (critical).
