@@ -15,6 +15,16 @@ Template:
 
 ---
 
+## 2026-11-03 — P1-02 Local stack — Claude with Lukas
+
+- Done: `deploy/compose.yaml` (PostgreSQL 18.6 with `bastion_pay`/`bastion_tickets`, `track_commit_timestamp=on`, host port 55432; Redis 8.10.3); `deploy/postgres/init/10-bastion.sql` (roles `pay_owner`, `pay_app`, `tickets_owner`, `tickets_app`; cross-product CONNECT revoked); forward-only runner `internal/platform/db/migrate` (SHA-256 per applied file, advisory lock, one transaction per file, refuses edited, missing, out-of-order and transaction-ending files); `0001_baseline.sql` per product; `scripts/migrate` and `task up/down/migrate`; `internal/platform/db/dbtest` (testcontainers: same images, init and migrations); AGENTS.md › Commands.
+- Verified: at 559a94d `task up` → both Healthy; `task migrate` → `applied 0001` ×2 on a fresh volume, then `up to date`; `go test ./internal/platform/db/...` → ok (dbtest 7.1 s, migrate 10.6 s); `task check` → `check OK`; `task test` (`-race`) → all ok, 5 runs in a row; 5 mutations each failed their test (docs/briefs/completed/P1-02-local-stack.md › Outcome).
+- Not done / next: P1-03 Platform basics (critical). Docker Desktop's image pulls still fail (NOW.md open question).
+- Decisions: brief D1–D13 and the G5 update (ErrTransactionControl, dbtest helpers). New dependencies (E39): pgx v5.12.0 (AD-15, the PostgreSQL driver); go-redis v9.23.0 (Redis client, the de-facto standard); testcontainers-go v0.44.0 with its postgres and redis modules (E29/TD §34.1, real stores in integration tests; ~50 indirect modules, used only by `dbtest`). golang.org/x/crypto raised to v0.56.0 and github.com/moby/go-archive to v0.3.0, because govulncheck flagged the versions testcontainers pulls in (GO-2026-6354, -6355, -6253). Plan: P1-02 `verify` unchanged.
+- Surprises: Docker Desktop proxy EOF on pulls (images loaded via `crane`); native PostgreSQL on Windows holds 5432 (owner chose 55432); brief gap on the dbtest step order; testcontainers' Redis module waits only 10 s (flaky under `-race`, raised to 60 s in dbtest); the writer twice committed with a red baseline (a heredoc broke the `&&` chain) and amended at once; reviewer found the lock release untested and the transaction-control hole, both fixed.
+
+---
+
 ## 2026-10-28 — P1-01 Repository skeleton — Claude with Lukas
 
 - Done: go.mod (`github.com/imlukasd/Bastion`, `go 1.27.0`, toolchain go1.27.3); the TD §2 layout (54 packages: `doc.go` per package, stub `main.go` per command, 6 `.gitkeep`); `.golangci.yml` with a linter for every rule ENGINEERING.md marks lint, proven by fixtures in `internal/archtest/testdata/lint` (26 expected issues, `clean` none); `scripts/check` (the `task check` runner: fail-fast, silent on pass, `check OK`); Taskfile (check, test, placeholders up/down/migrate/chaos); AGENTS.md › Commands. G5 led to D13: noctx enabled, ENGINEERING.md E9/E13/E28 "lint, review", E11 "at most".
