@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/modules/redis"
 
 	"github.com/imlukasd/Bastion/internal/platform/db/migrate"
 )
@@ -93,7 +94,9 @@ func StartPostgresUnmigrated(t testing.TB) *Postgres {
 		postgres.BasicWaitStrategies(),
 		testcontainers.WithCmd("postgres", "-c", TrackCommitTimestamp),
 	)
-	terminateOnCleanup(t, ctr)
+	if ctr != nil {
+		terminateOnCleanup(t, ctr)
+	}
 	if err != nil {
 		t.Fatalf("dbtest: start PostgreSQL: %v", err)
 	}
@@ -158,6 +161,24 @@ func migrateDir(t testing.TB, url, dir string) {
 	}
 }
 
+// StartRedis starts RedisImage and returns its redis:// URL.
+func StartRedis(t testing.TB) string {
+	t.Helper()
+	skipShort(t)
+	ctr, err := redis.Run(t.Context(), RedisImage)
+	if ctr != nil {
+		terminateOnCleanup(t, ctr)
+	}
+	if err != nil {
+		t.Fatalf("dbtest: start Redis: %v", err)
+	}
+	url, err := ctr.ConnectionString(t.Context())
+	if err != nil {
+		t.Fatalf("dbtest: Redis URL: %v", err)
+	}
+	return url
+}
+
 // skipShort skips integration tests under -short, so task check needs no Docker.
 func skipShort(t testing.TB) {
 	t.Helper()
@@ -166,15 +187,13 @@ func skipShort(t testing.TB) {
 	}
 }
 
-// terminateOnCleanup stops the container when the test ends. t.Context() is
-// canceled before cleanups run, so the cleanup keeps its values but not its cancellation.
+// terminateOnCleanup stops the container when the test ends; ctr must not be
+// nil. t.Context() is canceled before cleanups run, so the cleanup keeps its
+// values but not its cancellation.
 func terminateOnCleanup(t testing.TB, ctr testcontainers.Container) {
 	t.Helper()
 	cleanupCtx := context.WithoutCancel(t.Context())
 	t.Cleanup(func() {
-		if ctr == nil {
-			return
-		}
 		if err := ctr.Terminate(cleanupCtx); err != nil {
 			t.Errorf("dbtest: terminate container: %v", err)
 		}
