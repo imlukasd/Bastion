@@ -99,6 +99,7 @@ var (
     ErrEdited           = errors.New("migrate: an applied migration was edited")
     ErrUnknownApplied   = errors.New("migrate: an applied migration has no file")
     ErrOutOfOrder       = errors.New("migrate: a pending migration is older than the latest applied one")
+    ErrTransactionControl = errors.New("migrate: a migration ended the runner's transaction (COMMIT, ROLLBACK or END)")
 )
 
 // Load reads every *.sql file at the root of fsys, sorted by version. Other files are ignored.
@@ -107,7 +108,7 @@ func Load(fsys fs.FS) ([]Migration, error)
 // Up applies the pending migrations in version order and returns the versions it applied (empty when up to date).
 func Up(ctx context.Context, conn *pgx.Conn, ms []Migration) ([]int, error)
 ```
-`Up`: takes `pg_advisory_lock(7_405_001)` on `conn` for its duration (released by `pg_advisory_unlock` before returning); `CREATE TABLE IF NOT EXISTS public.schema_migrations (version integer PRIMARY KEY, name text NOT NULL, checksum bytea NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`; checks every applied row before applying anything (`ErrUnknownApplied`, `ErrEdited`, `ErrOutOfOrder`, wrapped with the version: `fmt.Errorf("%w: %04d", err, v)`); then each pending migration in its own transaction: `Exec(SQL)` (no arguments, so the simple protocol runs several statements), `INSERT` its row, commit. A failing migration rolls back entirely and `Up` returns `fmt.Errorf("migrate: %04d: %w", v, err)` with the versions applied before it.
+`Up`: takes `pg_advisory_lock(7_405_001)` on `conn` for its duration (released by `pg_advisory_unlock` before returning); `CREATE TABLE IF NOT EXISTS public.schema_migrations (version integer PRIMARY KEY, name text NOT NULL, checksum bytea NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`; checks every applied row before applying anything (`ErrUnknownApplied`, `ErrEdited`, `ErrOutOfOrder`, wrapped with the version: `fmt.Errorf("%w: %04d", err, v)`); then each pending migration in its own transaction: `Exec(SQL)` (no arguments, so the simple protocol runs several statements), `INSERT` its row, commit. A failing migration rolls back entirely and `Up` returns `fmt.Errorf("migrate: %04d: %w", v, err)` with the versions applied before it. After `Exec(SQL)` and before the `INSERT`, `Up` checks that the session is still in the runner's transaction (`conn.PgConn().TxStatus() == 'T'`); if the file ended it, `Up` records nothing and returns `ErrTransactionControl` wrapped as above. What the file committed before ending the transaction stays, so the rule for authors is: migration files never contain `COMMIT`, `ROLLBACK` or `END` (AGENTS.md). The advisory lock is released on success and on failure (a test checks it from a second session with `pg_try_advisory_lock`).
 
 **Command `scripts/migrate`**: `go run ./scripts/migrate -url <owner URL> -dir <migrations dir>`. Prints `migrate <dir>: applied 0001 0002` or `migrate <dir>: up to date`; exit 1 with the error on stderr otherwise.
 
@@ -142,6 +143,17 @@ func StartPostgres(t testing.TB) *Postgres
 func StartPostgresUnmigrated(t testing.TB) *Postgres
 // StartRedis starts RedisImage and returns its redis:// URL.
 func StartRedis(t testing.TB) string
+
+// Shared by the integration tests (added at G5, owner-approved):
+const TrackCommitTimestamp = "track_commit_timestamp=on"
+const (
+    Superuser = "postgres"; PayDatabase = "bastion_pay"; TicketsDatabase = "bastion_tickets"
+    PayOwner = "pay_owner"; PayApp = "pay_app"; TicketsOwner = "tickets_owner"; TicketsApp = "tickets_app"
+)
+// Connect opens a pgx connection to connURL, closed when the test ends.
+func Connect(t testing.TB, connURL string) *pgx.Conn
+// ModuleRoot returns the repository root (the directory holding go.mod).
+func ModuleRoot(t testing.TB) string
 ```
 Each `Start*`: `t.Skip` when `testing.Short()`; `t.Fatal` on any error (Docker missing included); container terminated in `t.Cleanup` with `context.WithoutCancel(t.Context())`. Repository files are found from the module root (directory of `go.mod`, located by walking up from this source file via `runtime.Caller`). Ryuk stays enabled (testcontainers default).
 
@@ -166,6 +178,8 @@ Each `Start*`: `t.Skip` when `testing.Short()`; `t.Fatal` on any error (Docker m
 | 2 | `… › TestUp_RefusesEditedMigration` | Changed SQL of an applied file → `ErrEdited`, nothing applied |
 | 2 | `… › TestUp_RefusesUnknownApplied` | Applied row without file → `ErrUnknownApplied` |
 | 2 | `… › TestUp_RefusesOutOfOrder` | 1 and 3 applied, 2 added → `ErrOutOfOrder` |
+| 2 | `… › TestUp_RefusesTransactionControl` | Migration with `COMMIT` → `ErrTransactionControl` naming the version, nothing recorded; the same for `ROLLBACK` |
+| 2 | `… › TestUp_ReleasesLock` | After `Up` succeeds and after it fails, a second session gets `pg_try_advisory_lock(7405001)` |
 | 2 | `… › TestUp_FailedMigrationRollsBack` | Migration 2 = valid statement then an invalid one → error naming 0002; 1 recorded, 2 not recorded, its first statement's effect absent |
 | 3 | `dbtest/stack_test.go › TestStack_Roles` | `pay_app` and `tickets_app` exist, can log in to their own database, are not superuser / createdb / createrole; `pay_app` → `bastion_tickets` and `tickets_app` → `bastion_pay` fail with 42501 (D6) |
 | 4 | `dbtest/stack_test.go › TestStack_ConnectsToBothDatabasesAndRedis` | `pay_app` on `bastion_pay` and `tickets_app` on `bastion_tickets` run `select 1`; Redis `SET`/`GET` round-trips a value |
