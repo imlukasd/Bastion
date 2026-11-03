@@ -89,9 +89,27 @@
       "depends_on": ["P1-01"],
       "done_when": "task up starts PostgreSQL >= 17 with databases bastion_pay and bastion_tickets (track_commit_timestamp = on) and Redis >= 7.2; task migrate applies db/pay and db/tickets migrations; application roles pay_app and tickets_app exist; an integration test connects to both databases and to Redis.",
       "verify": ["task up", "task migrate", "go test ./internal/platform/db/..."],
-      "status": "todo",
-      "owner": null,
-      "evidence": null
+      "status": "done",
+      "owner": "Claude",
+      "evidence": {
+        "date": "2026-11-03",
+        "commit": "559a94d",
+        "results": [
+          { "command": "task up", "outcome": "pass", "output": "Container bastion-postgres-1 Healthy, Container bastion-redis-1 Healthy" },
+          { "command": "task migrate", "outcome": "pass", "output": "migrate db/pay/migrations: applied 0001; migrate db/tickets/migrations: applied 0001 (fresh volume), then up to date" },
+          { "command": "go test ./internal/platform/db/...", "outcome": "pass", "output": "ok dbtest 7.1s, ok migrate 10.6s (-count=1)" }
+        ],
+        "mutations": [
+          "migrate.go:161 checksum compare disabled → TestUp_RefusesEditedMigration FAIL; restored",
+          "migrate.go:195 TxStatus check disabled → TestUp_RefusesTransactionControl FAIL; restored",
+          "migrate.go:111 advisory unlock removed → TestUp_ReleasesLock FAIL; restored",
+          "10-bastion.sql:18 REVOKE ALL ON DATABASE removed → TestStack_Roles FAIL; restored",
+          "db/pay/migrations/0001_baseline.sql:9 ALTER DEFAULT PRIVILEGES removed → TestStack_MigrationsApplied FAIL; restored"
+        ],
+        "review": "reviewer APPROVE, 0 blockers; 2 majors (lock release untested, transaction control in a migration file) fixed in 90cf887 after the owner approved the brief update e28156a; 7 minors fixed",
+        "report": "docs/briefs/completed/P1-02-local-stack.md",
+        "approved_by": "Lukas"
+      }
     },
     {
       "id": "P1-03",
