@@ -20,9 +20,14 @@ tasks:
     cmds:
       - docker compose -f deploy/compose.yaml down {{.CLI_ARGS}}
   migrate:
-    desc: "Apply the Pay and Tickets migrations (P1-02)"
+    desc: "Apply the Pay and Tickets migrations as the owner roles (PAY_MIGRATE_URL, TIX_MIGRATE_URL)"
+    env:
+      # Local stack defaults (P1-02 D7, D12); set the variables to migrate elsewhere.
+      PAY_MIGRATE_URL: '{{.PAY_MIGRATE_URL | default "postgres://pay_owner:pay_owner@localhost:55432/bastion_pay?sslmode=disable"}}'
+      TIX_MIGRATE_URL: '{{.TIX_MIGRATE_URL | default "postgres://tickets_owner:tickets_owner@localhost:55432/bastion_tickets?sslmode=disable"}}'
     cmds:
-      - 'echo "task migrate: not implemented yet (P1-02)" >&2; exit 1'
+      - go run ./scripts/migrate -url "$PAY_MIGRATE_URL" -dir db/pay/migrations
+      - go run ./scripts/migrate -url "$TIX_MIGRATE_URL" -dir db/tickets/migrations
   chaos:
     desc: "Run chaos scenarios, all or one: task chaos -- C4 (P2-04)"
     cmds:
