@@ -89,8 +89,8 @@
       "depends_on": ["P1-01"],
       "done_when": "task up starts PostgreSQL >= 17 with databases bastion_pay and bastion_tickets (track_commit_timestamp = on) and Redis >= 7.2; task migrate applies db/pay and db/tickets migrations; application roles pay_app and tickets_app exist; an integration test connects to both databases and to Redis.",
       "verify": ["task up", "task migrate", "go test ./internal/platform/db/..."],
-      "status": "todo",
-      "owner": null,
+      "status": "in_progress",
+      "owner": "Claude",
       "evidence": null
     },
     {

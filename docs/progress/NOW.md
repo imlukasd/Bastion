@@ -2,22 +2,21 @@
 
 Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 40 lines; history lives in [LOG.md](LOG.md).
 
-- **Updated:** 2026-10-28, Claude with Lukas (P1-01 done)
+- **Updated:** 2026-11-03, Claude with Lukas (P1-02 started)
 - **Phase:** 1 Foundations, in progress (1/15 done)
-- **Active item:** none
-- **Branch:** main
+- **Active item:** P1-02 Local stack (brief being drafted)
+- **Branch:** item/P1-02-local-stack
 
 ## State
 
 - Docs v4.1 (docs/01–04) are the source of truth. P1-01 created the Go skeleton: go.mod (`github.com/imlukasd/Bastion`, Go 1.27), the TD §2 layout (54 packages with `doc.go` or stub `main.go`), Taskfile, `.golangci.yml`, lint fixtures in `internal/archtest`, and `scripts/check`.
 - Baseline: `task check` → `check OK` (build, vet, golangci-lint, govulncheck, `go test -short`, plan check). Full suite: `task test`.
-- Toolchain: Go 1.27.3 (MSI), task 3.54.0 (winget), gcc for `-race`; golangci-lint and govulncheck are pinned in `tools.mod` (`go tool -modfile=tools.mod …`; in PowerShell this argument gets split, so use bash or task). Docker is installed; its daemon was not running on 2026-10-28.
+- Toolchain: Go 1.27.3 (MSI), task 3.54.0 (winget), gcc for `-race`; golangci-lint and govulncheck are pinned in `tools.mod` (`go tool -modfile=tools.mod …`; in PowerShell this argument gets split, so use bash or task). Since 2026-11-03 the repository is worked on in WSL2 (Linux); Docker 29.1.3 daemon is running there.
 - Loop: item brief (G1) → tests (G2, unless `Skip: G2`) → implementation → G3–G5 → owner's `approve` → merge `--no-ff` (AGENTS.md).
 
 ## Next step
 
-1. Owner runs `/clear`, then `/catchup`.
-2. Propose P1-02 Local stack (Compose with two PostgreSQL databases and Redis; migrations), not critical, `Executor: strong` (all of Phase 1). Read `go run scripts/brief/main.go -item P1-02`, refs TD §1.3, §1.4, §33, ARCH §12.1, AD-03, AD-15. Start the Docker daemon first.
+1. Draft docs/briefs/active/P1-02-local-stack.md (G1): refs TD §1.3, §1.4, §33, ARCH §12.1, AD-03, AD-15; ask the owner the OPEN decisions; wait for `approve brief`.
 
 ## Open questions (owner decides)
 
