@@ -18,6 +18,9 @@ func files(m map[string]string) fstest.MapFS {
 	return fsys
 }
 
+// fs.ReadDir already returns names sorted, and fixed-width NNNN prefixes make
+// name order equal version order, so this test checks the resulting order but
+// cannot tell whether Load's own sort runs (it is kept as a guarantee of the contract).
 func TestLoad_SortsByVersionAndIgnoresOtherFiles(t *testing.T) {
 	ms, err := migrate.Load(files(map[string]string{
 		"0002_second.sql":    "SELECT 2;",

@@ -32,11 +32,12 @@ type Migration struct {
 
 // Errors returned by Load and Up, wrapped with the file or version they concern.
 var (
-	ErrBadName          = errors.New("migrate: file name is not NNNN_slug.sql")
-	ErrDuplicateVersion = errors.New("migrate: two files share a version")
-	ErrEdited           = errors.New("migrate: an applied migration was edited")
-	ErrUnknownApplied   = errors.New("migrate: an applied migration has no file")
-	ErrOutOfOrder       = errors.New("migrate: a pending migration is older than the latest applied one")
+	ErrBadName            = errors.New("migrate: file name is not NNNN_slug.sql")
+	ErrDuplicateVersion   = errors.New("migrate: two files share a version")
+	ErrEdited             = errors.New("migrate: an applied migration was edited")
+	ErrUnknownApplied     = errors.New("migrate: an applied migration has no file")
+	ErrOutOfOrder         = errors.New("migrate: a pending migration is older than the latest applied one")
+	ErrTransactionControl = errors.New("migrate: a migration ended the runner's transaction (COMMIT, ROLLBACK or END)")
 )
 
 // lockKey serializes concurrent runs on one database (pg_advisory_lock).
@@ -187,6 +188,12 @@ func apply(ctx context.Context, conn *pgx.Conn, m Migration) error {
 	// No arguments, so pgx uses the simple protocol and the file may hold several statements.
 	if _, err := tx.Exec(ctx, m.SQL); err != nil {
 		return err
+	}
+	// A COMMIT, ROLLBACK or END in the file would end this transaction, and the
+	// row below would then commit apart from the migration (E23). Whatever the
+	// file committed stays; the file must be fixed by hand.
+	if status := conn.PgConn().TxStatus(); status != 'T' {
+		return ErrTransactionControl
 	}
 	if _, err := tx.Exec(ctx,
 		"INSERT INTO public.schema_migrations (version, name, checksum) VALUES ($1, $2, $3)",

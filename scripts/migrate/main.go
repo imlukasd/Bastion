@@ -49,16 +49,24 @@ func run(ctx context.Context, w io.Writer, url, dir string) error {
 	defer func() { _ = conn.Close(context.WithoutCancel(ctx)) }()
 	applied, err := migrate.Up(ctx, conn, ms)
 	if err != nil {
+		if len(applied) > 0 {
+			return fmt.Errorf("migrate %s: applied %s, then: %w", dir, versions(applied), err)
+		}
 		return fmt.Errorf("migrate %s: %w", dir, err)
 	}
 	if len(applied) == 0 {
 		_, err = fmt.Fprintf(w, "migrate %s: up to date\n", dir)
 		return err
 	}
-	versions := make([]string, len(applied))
-	for i, v := range applied {
-		versions[i] = fmt.Sprintf("%04d", v)
-	}
-	_, err = fmt.Fprintf(w, "migrate %s: applied %s\n", dir, strings.Join(versions, " "))
+	_, err = fmt.Fprintf(w, "migrate %s: applied %s\n", dir, versions(applied))
 	return err
+}
+
+// versions formats applied versions as "0001 0002".
+func versions(applied []int) string {
+	out := make([]string, len(applied))
+	for i, v := range applied {
+		out[i] = fmt.Sprintf("%04d", v)
+	}
+	return strings.Join(out, " ")
 }

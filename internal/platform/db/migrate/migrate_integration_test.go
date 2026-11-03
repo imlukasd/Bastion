@@ -150,6 +150,9 @@ func TestUp_RefusesEditedMigration(t *testing.T) {
 	if tableExists(t, conn, "b") {
 		t.Error("0002 ran although 0001 was edited")
 	}
+	if got := count(t, conn, "a"); got != 1 {
+		t.Errorf("rows in a = %d, want 1: the edited 0001 ran again", got)
+	}
 }
 
 func TestUp_RefusesUnknownApplied(t *testing.T) {
@@ -165,6 +168,9 @@ func TestUp_RefusesUnknownApplied(t *testing.T) {
 	}
 	if tableExists(t, conn, "c") {
 		t.Error("0003 ran although 0002 has no file")
+	}
+	if got := recorded(t, conn); !slices.Equal(got, []int{1, 2}) {
+		t.Errorf("schema_migrations = %v, want [1 2]", got)
 	}
 }
 
@@ -184,6 +190,62 @@ func TestUp_RefusesOutOfOrder(t *testing.T) {
 	}
 	if tableExists(t, conn, "b") {
 		t.Error("0002 ran out of order")
+	}
+}
+
+func TestUp_RefusesTransactionControl(t *testing.T) {
+	for _, control := range []string{"COMMIT", "ROLLBACK"} {
+		t.Run(control, func(t *testing.T) {
+			conn := scratch(t)
+			ms := load(t, map[string]string{"0001_a.sql": "CREATE TABLE a (id int); " + control + "; CREATE TABLE b (id int);"})
+
+			applied, err := migrate.Up(t.Context(), conn, ms)
+			if !errors.Is(err, migrate.ErrTransactionControl) || !strings.Contains(err.Error(), "0001") {
+				t.Fatalf("Up error = %v, want ErrTransactionControl for 0001", err)
+			}
+			if len(applied) != 0 {
+				t.Errorf("Up applied %v, want nothing", applied)
+			}
+			if got := recorded(t, conn); len(got) != 0 {
+				t.Errorf("schema_migrations = %v, want empty", got)
+			}
+		})
+	}
+}
+
+// The contract's lock key (pg_advisory_lock(7_405_001)).
+const lockKey = 7405001
+
+// lockFree reports whether a second session can take the runner's advisory lock.
+func lockFree(t *testing.T, url string) bool {
+	t.Helper()
+	other := dbtest.Connect(t, url)
+	var got bool
+	if err := other.QueryRow(t.Context(), "SELECT pg_try_advisory_lock($1)", lockKey).Scan(&got); err != nil {
+		t.Fatalf("pg_try_advisory_lock: %v", err)
+	}
+	if got {
+		if _, err := other.Exec(t.Context(), "SELECT pg_advisory_unlock($1)", lockKey); err != nil {
+			t.Fatalf("pg_advisory_unlock: %v", err)
+		}
+	}
+	return got
+}
+
+func TestUp_ReleasesLock(t *testing.T) {
+	conn := scratch(t)
+	url := conn.Config().ConnString()
+
+	up(t, conn, load(t, with(nil)))
+	if !lockFree(t, url) {
+		t.Error("advisory lock still held after a successful Up")
+	}
+
+	if _, err := migrate.Up(t.Context(), conn, load(t, with(map[string]string{"0003_c.sql": "SELECT * FROM missing_table;"}))); err == nil {
+		t.Fatal("Up succeeded, want the failure of 0003")
+	}
+	if !lockFree(t, url) {
+		t.Error("advisory lock still held after a failed Up")
 	}
 }
 

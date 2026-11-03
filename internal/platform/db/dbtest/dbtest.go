@@ -117,10 +117,10 @@ func StartPostgresUnmigrated(t testing.TB) *Postgres {
 	return p
 }
 
-// Connect opens a connection to url, closed when the test ends.
-func Connect(t testing.TB, url string) *pgx.Conn {
+// Connect opens a connection to connURL, closed when the test ends.
+func Connect(t testing.TB, connURL string) *pgx.Conn {
 	t.Helper()
-	conn, err := pgx.Connect(t.Context(), url)
+	conn, err := pgx.Connect(t.Context(), connURL)
 	if err != nil {
 		t.Fatalf("dbtest: connect: %v", err)
 	}
@@ -149,14 +149,14 @@ func ModuleRoot(t testing.TB) string {
 	}
 }
 
-// migrateDir applies the migrations in dir through url.
-func migrateDir(t testing.TB, url, dir string) {
+// migrateDir applies the migrations in dir through connURL.
+func migrateDir(t testing.TB, connURL, dir string) {
 	t.Helper()
 	ms, err := migrate.Load(os.DirFS(dir))
 	if err != nil {
 		t.Fatalf("dbtest: load %s: %v", dir, err)
 	}
-	if _, err := migrate.Up(t.Context(), Connect(t, url), ms); err != nil {
+	if _, err := migrate.Up(t.Context(), Connect(t, connURL), ms); err != nil {
 		t.Fatalf("dbtest: migrate %s: %v", dir, err)
 	}
 }
@@ -172,11 +172,11 @@ func StartRedis(t testing.TB) string {
 	if err != nil {
 		t.Fatalf("dbtest: start Redis: %v", err)
 	}
-	url, err := ctr.ConnectionString(t.Context())
+	redisURL, err := ctr.ConnectionString(t.Context())
 	if err != nil {
 		t.Fatalf("dbtest: Redis URL: %v", err)
 	}
-	return url
+	return redisURL
 }
 
 // skipShort skips integration tests under -short, so task check needs no Docker.

@@ -111,7 +111,7 @@ The full loop is the default. A step that adds nothing to correctness for an ite
   - `task check`: the baseline: build, vet, golangci-lint, govulncheck, unit tests (`-short`), plan check. Prints failures only; `check OK` when green.
   - `task test`: the full suite with `-race` (G3); integration tests need Docker.
   - `task up` / `task down`: PostgreSQL 18 (`bastion_pay`, `bastion_tickets`) on `127.0.0.1:55432` and Redis 8 on `127.0.0.1:6379` (`deploy/compose.yaml`). The init SQL runs only on an empty volume: after changing it, `task down -- -v`.
-  - `task migrate`: forward-only migrations `db/<product>/migrations/NNNN_slug.sql`, run as `pay_owner` / `tickets_owner` (`PAY_MIGRATE_URL`, `TIX_MIGRATE_URL`). Never edit an applied file: the runner refuses it (E23). Local passwords equal the role names.
+  - `task migrate`: forward-only migrations `db/<product>/migrations/NNNN_slug.sql`, run as `pay_owner` / `tickets_owner` (`PAY_MIGRATE_URL`, `TIX_MIGRATE_URL`). Never edit an applied file: the runner refuses it (E23). A migration file never contains `COMMIT`, `ROLLBACK` or `END`: each file runs inside the runner's transaction, which refuses a file that ends it. Local passwords equal the role names.
   - Integration tests use `internal/platform/db/dbtest` (`StartPostgres`, `StartRedis`: the stack's images, roles and migrations in testcontainers); they skip under `-short`.
   - `task chaos [-- C4]`: chaos scenarios (P2-04).
   - Lint and vulnerability tools are pinned in `tools.mod`: `go tool -modfile=tools.mod golangci-lint run ./...`; upgrade with `go get -tool -modfile=tools.mod <tool>@<version>`.
