@@ -252,6 +252,8 @@ Stop and report instead of choosing when:
 - 2026-11-09 — step 5 done (strong); `go test ./internal/platform/logx/` → ok
 - 2026-11-09 — step 6 G3 (strong); `task check` → `check OK`; `task test` → all ok under -race; `go test ./internal/platform/...` → ok; `go test -race -count=5 -run 'TestInTx_Retries|TestInTx_StopsWhenContextEnds' ./internal/platform/db/` → ok (no flakes)
 - 2026-11-09 — step 6 G4 (strong); all 11 Mutations rows killed (12 runs: MaxRetries 2 and 4), each by the test the table names; tree restored after each
+- 2026-11-09 — G5 reviewer: CHANGES NEEDED (2 major, 6 minor, no code defect); owner approved brief update (docs commit) and tests b68cded; G4 rerun 13/13 killed; G3 rerun on b68cded incl. `-race -count=20` → ok (97.5 s)
+- 2026-11-09 — item report e68445e; owner `approve` (G6); verify on e68445e `go test ./internal/platform/...` → ok
 
 ## Surprises
 - G5 (2026-11-09) found a test gap: no test retried a `40001` raised at `COMMIT`, and D11's wording on `BEGIN` errors did not match `pgx.BeginTxFunc`. The owner approved a brief update and new tests: a deferred-trigger commit-retry test, a barrier that cannot hang, and a leak test for unparsable URLs. A spike on the local stack showed a deferred constraint trigger raising `40001` fails only the first `COMMIT` and stores nothing.

@@ -120,9 +120,36 @@
       "depends_on": ["P1-01"],
       "done_when": "money: int64 minor units, basis points as floor(amount × bps / 10 000) with the 9.2 × 10^14 bound, no floating point; ids: UUIDv7; config loads the TD §33 variables needed so far; db: pgx pool and a transaction helper that retries 40001/40P01 up to 3 times with jitter and maps SQLSTATEs per TD §1.5; logx: slog JSON. Unit tests cover the money bounds and the error mapping.",
       "verify": ["go test ./internal/platform/..."],
-      "status": "in_progress",
+      "status": "done",
       "owner": "Claude",
-      "evidence": null
+      "evidence": {
+        "date": "2026-11-09",
+        "commit": "e68445e",
+        "results": [
+          {
+            "command": "go test ./internal/platform/...",
+            "outcome": "pass",
+            "output": "ok config, db 10.1s, db/dbtest 11.2s, db/migrate 14.3s, ids, logx, money (-count=1)"
+          }
+        ],
+        "mutations": [
+          "money.go:27 amount bound removed → TestBPS_RejectsOutOfRange FAIL; restored",
+          "money.go:30 bps range removed → TestBPS_RejectsOutOfRange FAIL; restored",
+          "money.go:34 floor replaced by +5000 rounding → TestBPS_Floors, TestSplit_IsExact FAIL; restored",
+          "money.go:44 rest amount−share−1 → TestSplit_IsExact FAIL; restored",
+          "tx.go:50 40001 not retryable → TestInTx_RetriesUpToThreeTimes/40001, TestInTx_RetriesSerializationFailure FAIL; restored",
+          "tx.go:50 40P01 not retryable → TestInTx_RetriesUpToThreeTimes/40P01, TestInTx_RetriesDeadlockVictim FAIL; restored",
+          "tx.go:34 only fn errors retried (commit errors not) → TestInTx_RetriesCommitSerializationFailure FAIL; restored",
+          "tx.go:16 MaxRetries 2 and 4 → TestInTx_RetriesUpToThreeTimes FAIL (both); restored",
+          "tx.go:50 23505 retryable → TestInTx_DoesNotRetryOtherErrors/23505 FAIL; restored",
+          "tx.go:41 backoff ignores ctx (context.WithoutCancel) → TestInTx_StopsWhenContextEnds FAIL; restored",
+          "errors.go:27 23505↔23514 swapped → TestMapError FAIL; restored",
+          "ids.go:18 NewV4 instead of NewV7 → TestNew_IsVersion7 FAIL; restored"
+        ],
+        "review": "reviewer CHANGES NEEDED, 0 blockers, code correct; 2 majors resolved (commit-time 40001 retry test b68cded after the owner approved brief update; E39 reasons for jackc/puddle/v2 and golang.org/x/sync in LOG.md); 6 minors resolved or recorded",
+        "report": "docs/briefs/completed/P1-03-platform-basics.md",
+        "approved_by": "Lukas"
+      }
     },
     {
       "id": "P1-04",
