@@ -178,14 +178,17 @@ func TestInTx_RetriesDeadlockVictim(t *testing.T) {
 	barrier.Add(2)
 	run := func(first, second int) error {
 		attempt := 0
+		var arrived sync.Once // E33: an early error releases the barrier, so the other side fails instead of hanging
+		defer arrived.Do(barrier.Done)
 		return db.InTx(t.Context(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			attempt++
 			calls.Add(1)
 			if _, err := tx.Exec(t.Context(), "UPDATE counters SET v = v + 1 WHERE id = $1", first); err != nil {
+				arrived.Do(barrier.Done)
 				return err
 			}
 			if attempt == 1 {
-				barrier.Done()
+				arrived.Do(barrier.Done)
 				barrier.Wait()
 			}
 			_, err := tx.Exec(t.Context(), "UPDATE counters SET v = v + 1 WHERE id = $1", second)
@@ -205,6 +208,38 @@ func TestInTx_RetriesDeadlockVictim(t *testing.T) {
 	}
 	if n := queryInt(t, pool, "SELECT count(*) FROM counters WHERE id IN (1, 2) AND v = 2"); n != 2 {
 		t.Errorf("%d of rows 1, 2 at v = 2, want both (each transaction applied once to each row)", n)
+	}
+}
+
+// D11: a 40001 raised at COMMIT (where SERIALIZABLE usually reports it) reruns
+// the whole transaction. A deferred constraint trigger fails the first COMMIT
+// only: the sequence it counts with is not rolled back.
+func TestInTx_RetriesCommitSerializationFailure(t *testing.T) {
+	pool := setup(t)
+	exec(t, pool,
+		"CREATE TABLE committed (k int NOT NULL)",
+		"CREATE SEQUENCE commit_attempts",
+		`CREATE FUNCTION fail_first_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN
+			IF nextval('commit_attempts') = 1 THEN
+				RAISE EXCEPTION 'first commit fails' USING ERRCODE = '40001';
+			END IF;
+			RETURN NULL;
+		END $$`,
+		`CREATE CONSTRAINT TRIGGER fail_first_commit AFTER INSERT ON committed
+			DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_first_commit()`,
+	)
+	calls := 0
+	err := db.InTx(t.Context(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		calls++
+		_, err := tx.Exec(t.Context(), "INSERT INTO committed (k) VALUES (1)")
+		return err // succeeds; the failure comes at COMMIT
+	})
+	if err != nil || calls != 2 {
+		t.Fatalf("InTx = %v after %d calls; want nil after 2", err, calls)
+	}
+	if n := queryInt(t, pool, "SELECT count(*) FROM committed"); n != 1 {
+		t.Fatalf("%d rows stored, want 1", n)
 	}
 }
 

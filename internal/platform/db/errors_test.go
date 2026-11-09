@@ -3,6 +3,7 @@ package db_test
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -62,6 +63,25 @@ func TestMapError_PassesOthersThrough(t *testing.T) {
 		got := db.MapError(in)
 		if got != in { //nolint:errorlint // D12: unknown errors are returned unchanged, the same value
 			t.Errorf("MapError(%v) = %v, want the same error", in, got)
+		}
+	}
+}
+
+// E36: a URL that does not parse is reported without its text, so its
+// password never reaches a log.
+func TestOpen_InvalidURLHidesPassword(t *testing.T) {
+	const secret = "s3cr3t-pw"
+	for _, u := range []string{
+		"postgres://pay_app:" + secret + "@127.0.0.1:notaport/bastion_pay",
+		"postgres://pay_app:" + secret + "@127.0.0.1:55432/bastion_pay?sslmode=bogus",
+	} {
+		pool, err := db.Open(t.Context(), u)
+		if err == nil {
+			pool.Close()
+			t.Fatalf("Open(%q) succeeded", u)
+		}
+		if strings.Contains(err.Error(), secret) {
+			t.Errorf("Open error %q contains the password", err)
 		}
 	}
 }
