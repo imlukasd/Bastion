@@ -48,7 +48,7 @@ The item's `done_when`, one clause per line:
 | D8 | Config validation and secrets | Required and non-empty; DB URLs parse with scheme `postgres`/`postgresql` and a host; Redis URL with scheme `redis`/`rediss` and a host. All problems are reported together (`errors.Join`); messages name the variable, never its value (URLs carry passwords, E36). Values come through a `Lookup` function (`os.LookupEnv` in `cmd`). | writer | E5 (no global state; tests pass a map), E36. |
 | D9 | Retry count | "Up to 3 times" = up to 3 retries after the first attempt: at most 4 attempts. | writer | Literal reading of done_when and TD §1.5 "retry ≤ 3". |
 | D10 | Backoff | Full jitter: before retry `n` (1 … 3) sleep a uniform random duration in `[0, min(100 ms, 10 ms × 2ⁿ⁻¹))` from `math/rand/v2`; the sleep stops when `ctx` is done. | writer | E25 full jitter; total wait ≤ 70 ms keeps request latency bounded. Not crypto-relevant. |
-| D11 | What is retried | A `*pgconn.PgError` with code `40001` or `40P01` anywhere in the error chain, returned by the body or by `COMMIT`; the transaction is rolled back and the whole body rerun. Errors from `BEGIN` and every other code are not retried. | writer | TD §1.5; E20. |
+| D11 | What is retried | A `*pgconn.PgError` with code `40001` or `40P01` anywhere in the error chain, returned by the body or by `COMMIT`; the transaction is rolled back and the whole body rerun. Every other code is not retried. `BEGIN` errors take the same path; PostgreSQL never returns `40001`/`40P01` from `BEGIN`. | writer (wording fixed after G5, owner 2026-11-09) | TD §1.5; E20. |
 | D12 | Error mapping form | `MapError` adds the sentinel with `fmt.Errorf("%w: %w", sentinel, err)`, so both `errors.Is(err, db.ErrDuplicate)` and `errors.As(err, &*pgconn.PgError)` (constraint name) work; already-mapped errors are returned unchanged; unknown codes and non-PostgreSQL errors pass through unchanged. `InTx` returns mapped errors. | writer | E14: mapped once, in `platform/db`; callers need the constraint name to tell which effect was a duplicate. |
 | D13 | Metrics `deadlocks_total`, `guard_bypass_total` | Not emitted here. | writer | Prometheus arrives with P8-01 (TD §32 metrics); no metrics dependency in Phase 1. |
 | D14 | Pool settings | `db.Open` uses pgx defaults (`pgxpool.ParseConfig`), then pings; it sets no session parameters. | writer | §33 names no pool variables. |
@@ -184,10 +184,12 @@ Output: one JSON object per line with keys `time`, `level`, `msg`, `service`, th
 | 2 | `db/db_integration_test.go › TestOpen_StoresUUIDv7` | `ids.New()` inserted into a `uuid` column and scanned back equal |
 | 3 | `config/config_test.go › TestLoadPay` / `TestLoadTickets` | valid values load; each required variable unset or `""` → `ErrMissing` naming it; all missing → all names in one error |
 | 3 | `… › TestLoad_RejectsInvalidURLs` | wrong scheme, no host, unparsable → `ErrInvalid` naming the variable; the error text does not contain the value's password |
+| 4 | `db/errors_test.go › TestOpen_InvalidURLHidesPassword` | an unparsable URL carrying a password → error whose text lacks the password (unit; runs under `-short`) |
 | 4 | `db/db_integration_test.go › TestOpen_ConnectsAsApp` | `Open(PayAppURL)` → `SELECT current_user` = `pay_app`; `Open` with a wrong password → error whose text lacks the password |
 | 5 | `… › TestInTx_RetriesUpToThreeTimes` | subtests 40001 and 40P01: body fails with that code k times; k = 3 → nil, 4 calls; k = 4 → `ErrSerialization`/`ErrDeadlock`, exactly 4 calls; effects of failed attempts absent (rolled back) |
 | 5 | `… › TestInTx_RetriesSerializationFailure` | real: `REPEATABLE READ` body reads a row, a second connection updates and commits it (first attempt only), body updates → 40001 → rerun; 2 calls; row value reflects both updates |
-| 5 | `… › TestInTx_RetriesDeadlockVictim` | real: two concurrent `InTx` lock rows 1→2 and 2→1 behind a barrier on their first attempt; both return nil; 3 calls in total; both updates stored |
+| 5 | `… › TestInTx_RetriesDeadlockVictim` | real: two concurrent `InTx` lock rows 1→2 and 2→1 behind a barrier on their first attempt; both return nil; 3 calls in total; both updates stored; a first-lock error releases the barrier so the test fails instead of hanging |
+| 5 | `… › TestInTx_RetriesCommitSerializationFailure` | real: a `DEFERRABLE INITIALLY DEFERRED` constraint trigger raises `40001` at the first `COMMIT` only (a sequence, not rolled back, counts commits) → rerun; nil, 2 calls, the row stored once |
 | 5, 6 | `… › TestInTx_DoesNotRetryOtherErrors` | subtests 23505, 23514, 55P03 (real `SET LOCAL lock_timeout` against a held row lock), a plain Go error: 1 call each; mapped sentinel (or the Go error unchanged) |
 | 5, 6 | `… › TestInTx_MapsCommitErrors` | `DEFERRABLE INITIALLY DEFERRED` unique constraint violated → error at `COMMIT` → `ErrDuplicate`, 1 call, nothing stored |
 | 5 | `… › TestInTx_StopsWhenContextEnds` | body cancels ctx and returns 40001 → 1 call; `errors.Is(err, context.Canceled)` and `errors.Is(err, ErrSerialization)` |
@@ -204,6 +206,7 @@ The helper takes no row locks of its own; callers take theirs in the product's l
 | Operation A | Operation B | Decided by (guard, constraint or lock) | Test |
 | --- | --- | --- | --- |
 | `InTx` (REPEATABLE READ) updates a row it read | another transaction updates and commits that row | PostgreSQL `40001`; A's whole transaction reruns on a new snapshot | `TestInTx_RetriesSerializationFailure` |
+| `InTx` commits | a serialization failure detected at `COMMIT` (SERIALIZABLE) | `40001` from `COMMIT` → the whole transaction reruns | `TestInTx_RetriesCommitSerializationFailure` |
 | `InTx` locks row 1 then row 2 | `InTx` locks row 2 then row 1 | PostgreSQL deadlock detector aborts one with `40P01`; it reruns after backoff | `TestInTx_RetriesDeadlockVictim` |
 | `InTx` inserts a key | the same key already committed (or at deferred `COMMIT`) | unique constraint `23505` → `ErrDuplicate`, never retried | `TestInTx_DoesNotRetryOtherErrors`, `TestInTx_MapsCommitErrors` |
 | `InTx` waits for a row lock | holder keeps it beyond `lock_timeout` | `55P03` → `ErrLockTimeout`, not retried | `TestInTx_DoesNotRetryOtherErrors` |
@@ -215,7 +218,8 @@ The helper takes no row locks of its own; callers take theirs in the product's l
 | Remove `40P01` from the retryable codes | `TestInTx_RetriesUpToThreeTimes/40P01`, `TestInTx_RetriesDeadlockVictim` |
 | `MaxRetries` 3 → 2, and 3 → 4 | `TestInTx_RetriesUpToThreeTimes` |
 | Add `23505` to the retryable codes | `TestInTx_DoesNotRetryOtherErrors/23505` |
-| Backoff ignores `ctx` | `TestInTx_StopsWhenContextEnds` |
+| Backoff ignores `ctx` (`sleep(context.WithoutCancel(ctx), …)`: both the `ctx.Err()` check and the `ctx.Done()` case) | `TestInTx_StopsWhenContextEnds` |
+| Retry only errors returned by `fn` (commit errors not retried) | `TestInTx_RetriesCommitSerializationFailure` |
 | Drop the amount bound check in `BPS` | `TestBPS_RejectsOutOfRange` |
 | Drop the bps range check in `BPS` | `TestBPS_RejectsOutOfRange` |
 | Round instead of floor (`(amount×bps + 5000) / 10000`) | `TestBPS_Floors`, `TestSplit_IsExact` |
@@ -250,5 +254,8 @@ Stop and report instead of choosing when:
 - 2026-11-09 — step 6 G4 (strong); all 11 Mutations rows killed (12 runs: MaxRetries 2 and 4), each by the test the table names; tree restored after each
 
 ## Surprises
+- G5 (2026-11-09) found a test gap: no test retried a `40001` raised at `COMMIT`, and D11's wording on `BEGIN` errors did not match `pgx.BeginTxFunc`. The owner approved a brief update and new tests: a deferred-trigger commit-retry test, a barrier that cannot hang, and a leak test for unparsable URLs. A spike on the local stack showed a deferred constraint trigger raising `40001` fails only the first `COMMIT` and stores nothing.
+- Not testable without timing-dependent tests, so covered by review only: that `InTx` waits `backoff(n)` (a `sleep(ctx, 0)` mutation survives), and cancellation while a backoff timer is running (the `ctx.Done()` case alone).
+- `pgxpool` also brings `golang.org/x/sync` (via puddle); both get an E39 reason in LOG.md.
 
 ## Outcome
