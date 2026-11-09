@@ -242,6 +242,7 @@ Stop and report instead of choosing when:
 ## Progress
 - 2026-11-09 — G2 tests committed (86724c7, strong); all fail on the stubs as shown to the owner.
 - 2026-11-09 — step 1 done (strong); `go test ./internal/platform/money/` → ok
+- 2026-11-09 — step 2 done (strong); `go test ./internal/platform/ids/` → ok; lint probe outside `ids` (deleted): `uuid.New` and `uuid.NewV4` each reported as AD-14 by forbidigo; `golangci-lint run ./...` → 0 issues
 
 ## Surprises
 
