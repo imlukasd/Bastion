@@ -5,8 +5,10 @@ import (
 	"log/slog"
 )
 
-// New returns a JSON slog logger on w at level; every record carries service (AD-21, E35).
+// New returns a slog logger that writes one JSON object per record to w,
+// drops records below level, and adds service to every record (AD-21, E35).
+// Callers never log secrets (E36, TD §32).
 func New(w io.Writer, level slog.Leveler, service string) *slog.Logger {
-	_, _, _ = w, level, service
-	return slog.New(slog.DiscardHandler) // P1-03 G2 stub
+	h := slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level})
+	return slog.New(h).With(slog.String("service", service))
 }

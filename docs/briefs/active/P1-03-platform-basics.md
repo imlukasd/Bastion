@@ -245,6 +245,7 @@ Stop and report instead of choosing when:
 - 2026-11-09 — step 2 done (strong); `go test ./internal/platform/ids/` → ok; lint probe outside `ids` (deleted): `uuid.New` and `uuid.NewV4` each reported as AD-14 by forbidigo; `golangci-lint run ./...` → 0 issues
 - 2026-11-09 — step 3 done (strong); `go test ./internal/platform/config/` → ok
 - 2026-11-09 — step 4 done (strong); `go test -short ./internal/platform/db/` → ok; `go test -race -count=1 ./internal/platform/db/` → ok (11 tests, real 40001 and 40P01 included)
+- 2026-11-09 — step 5 done (strong); `go test ./internal/platform/logx/` → ok
 
 ## Surprises
 
