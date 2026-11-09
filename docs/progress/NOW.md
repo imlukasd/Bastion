@@ -2,10 +2,10 @@
 
 Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 40 lines; history lives in [LOG.md](LOG.md).
 
-- **Updated:** 2026-11-03, Claude with Lukas (P1-02 done)
+- **Updated:** 2026-11-09, Claude with Lukas (P1-03 started)
 - **Phase:** 1 Foundations, in progress (2/15 done)
-- **Active item:** none
-- **Branch:** main
+- **Active item:** P1-03 Platform basics (brief being drafted)
+- **Branch:** item/P1-03-platform-basics
 
 ## State
 
@@ -16,8 +16,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 ## Next step
 
-1. Owner runs `/clear`, then `/catchup`.
-2. Propose P1-03 Platform basics (money, ids, config, transactions, logging), **critical**, `Executor: strong`: full brief with Locks/Race table/Mutations as they apply, no skipped gates. Read `go run scripts/brief/main.go -item P1-03`, refs TD §1.1, §1.2, §1.5, §33, AD-14, AD-21. It adds the pgx pool and transaction helper in `internal/platform/db` (P1-02 left them out of scope); integration tests use `dbtest.StartPostgres`.
+1. Draft docs/briefs/active/P1-03-platform-basics.md (G1, critical: Locks/Race table/Mutations as they apply, no skipped gates): refs TD §1.1, §1.2, §1.5, §33, AD-14, AD-21; ask the owner the OPEN decisions; wait for `approve brief`. Adds the pgx pool and transaction helper in `internal/platform/db`; integration tests use `dbtest.StartPostgres`.
 
 ## Open questions (owner decides)
 
@@ -26,6 +25,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 ## Recent decisions
 
+- 2026-11-09: govulncheck flagged GO-2026-6865 (klauspost/compress, via testcontainers); fixed on main by bumping to v1.20.2 (c57b7c5). Owner: small red-baseline fixes go straight to main, no fix/ branch.
 - 2026-11-03: P1-02 D3: migrations use the in-house runner (checksums, forward-only, refuses COMMIT/ROLLBACK in a file); host port 55432 for PostgreSQL; baseline migration revokes PUBLIC on schema public and EXECUTE on functions by default (D8).
 - 2026-11-03: Work moved to WSL2; the P1-01 Smart App Control block no longer occurs (`task test` fully green).
 - 2026-10-28: P1-01 D13: noctx enabled; ENGINEERING.md E9, E13, E28 are "lint, review" and E11 says "at most 60 lines, cognitive complexity at most 15".
