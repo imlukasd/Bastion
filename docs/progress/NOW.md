@@ -2,33 +2,39 @@
 
 Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 40 lines; history lives in [LOG.md](LOG.md).
 
-- **Updated:** 2026-11-03, Claude with Lukas (P1-02 done)
-- **Phase:** 1 Foundations, in progress (2/15 done)
+- **Updated:** 2026-11-09, Claude with Lukas (P1-03 done)
+- **Phase:** 1 Foundations, in progress (3/15 done)
 - **Active item:** none
 - **Branch:** main
 
 ## State
 
-- Docs v4.1 (docs/01–04) are the source of truth. P1-01: Go skeleton, Taskfile, lint. P1-02: local stack (`deploy/compose.yaml`: PostgreSQL 18.6 on `127.0.0.1:55432` with `bastion_pay`/`bastion_tickets`, roles `*_owner`/`*_app`; Redis 8.10.3 on 6379), forward-only migration runner `internal/platform/db/migrate` (`task migrate`), test helper `internal/platform/db/dbtest` (testcontainers).
-- Baseline: `task check` → `check OK`. Full suite: `task test` (needs Docker; green under `-race`, archtest included).
-- Environment: WSL2 (Linux), Go 1.27.3, task 3.54.0, Docker Desktop 4.97 (Engine 29.9.2). A native PostgreSQL on the Windows host holds port 5432, hence 55432. Images not yet local can be fetched with `go run github.com/google/go-containerregistry/cmd/crane@v0.20.6 pull <image> <file>.tar` then `docker load -i <file>.tar` while Docker Desktop's pulls fail.
+- Docs v4.1 (docs/01–04) are the source of truth.
+  - P1-01: Go skeleton, Taskfile, lint.
+  - P1-02: local stack (`deploy/compose.yaml`, PostgreSQL 18.6 on `127.0.0.1:55432`, Redis 8.10.3), migration runner, `dbtest`.
+  - P1-03 platform basics in `internal/platform`:
+    - `money.BPS`/`Split`;
+    - `ids.New` (UUIDv7, standard `uuid`; lint bans `uuid.New`/`NewV4` elsewhere);
+    - `config.LoadPay`/`LoadTickets`;
+    - `db.Open`, `db.InTx` (retries 40001/40P01, at most 3), `db.MapError` + sentinels (`ErrDuplicate` …);
+    - `logx.New`.
+- Baseline: `task check` → `check OK`. Full suite: `task test` (needs Docker; green under `-race`).
+- Environment: WSL2, Go 1.27.3, task 3.54.0, Docker Desktop 4.97 (Engine 29.9.2); enable WSL integration for the distro. A native PostgreSQL on the Windows host holds 5432, hence 55432. When Docker Desktop's pulls fail: `go run github.com/google/go-containerregistry/cmd/crane@v0.20.6 pull <image> <file>.tar`, then `docker load -i <file>.tar`.
 - Loop: item brief (G1) → tests (G2, unless `Skip: G2`) → implementation → G3–G5 → owner's `approve` → merge `--no-ff` (AGENTS.md).
 
 ## Next step
 
 1. Owner runs `/clear`, then `/catchup`.
-2. Propose P1-03 Platform basics (money, ids, config, transactions, logging), **critical**, `Executor: strong`: full brief with Locks/Race table/Mutations as they apply, no skipped gates. Read `go run scripts/brief/main.go -item P1-03`, refs TD §1.1, §1.2, §1.5, §33, AD-14, AD-21. It adds the pgx pool and transaction helper in `internal/platform/db` (P1-02 left them out of scope); integration tests use `dbtest.StartPostgres`.
+2. Propose the next ready item: P1-04 Architecture test for module boundaries (not critical, `Executor: strong` as all of Phase 1), or P1-05 Ledger kit schema (critical). Read `go run scripts/brief/main.go -item <ID>` and its refs. Later items use `db.InTx` for transactions and `money.Split` for every fee (E8, E14, E20).
 
 ## Open questions (owner decides)
 
-- Docker Desktop cannot pull images: its proxy `http.docker.internal:3128` ends every Docker Hub request in `EOF` (also after the update to 4.97), while WSL itself reaches Docker Hub. Check Settings › Resources › Proxies (and any Windows proxy/VPN). Workaround above.
-- CI on GitHub Actions (TD §34.4): deferred by the owner on 2026-10-28; no CI item in the plan for now.
+- Spec gap (P1-03 D15): TD §1.5 maps `55P03` (`lock_timeout`), but no section sets a `lock_timeout` value, so without one a lock wait never times out. Decide with the item that defines API and worker timeouts.
+- Docker Desktop cannot pull images: its proxy `http.docker.internal:3128` ends Docker Hub requests in `EOF`. Check Settings › Resources › Proxies. The workaround is above.
+- CI on GitHub Actions (TD §34.4): deferred by the owner on 2026-10-28.
 
 ## Recent decisions
 
-- 2026-11-03: P1-02 D3: migrations use the in-house runner (checksums, forward-only, refuses COMMIT/ROLLBACK in a file); host port 55432 for PostgreSQL; baseline migration revokes PUBLIC on schema public and EXECUTE on functions by default (D8).
-- 2026-11-03: Work moved to WSL2; the P1-01 Smart App Control block no longer occurs (`task test` fully green).
-- 2026-10-28: P1-01 D13: noctx enabled; ENGINEERING.md E9, E13, E28 are "lint, review" and E11 says "at most 60 lines, cognitive complexity at most 15".
-- 2026-10-28: Right-sizing: a brief may skip G2 and G5 on items that are not critical (`Skip:` line, reason in Decisions). Commits are short conventional commits with no names or trailers; an approval is the commit itself.
-- 2026-10-28: Module path `github.com/imlukasd/Bastion`; Go 1.27.3.
-- 2026-10-28: Executor per brief: `strong` (Opus, main session) for critical items and all of Phase 1, `standard` (Sonnet `implementer`) otherwise.
+- 2026-11-09: P1-03: standard library `uuid` for UUIDv7; `InTx` retries 40001/40P01 from the body or COMMIT, at most 3 times, full jitter ≤ 70 ms; config errors never echo values; no `lock_timeout` set (D15).
+- 2026-11-09: Small red-baseline fixes go straight to main, with no fix/ branch (c57b7c5: klauspost/compress v1.20.2 for GO-2026-6865).
+- 2026-10-28: Executor per brief: `strong` for critical items and all of Phase 1, `standard` (Sonnet `implementer`) otherwise.

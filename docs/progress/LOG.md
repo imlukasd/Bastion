@@ -15,6 +15,41 @@ Template:
 
 ---
 
+## 2026-11-09 — P1-03 Platform basics — Claude with Lukas
+
+- Done:
+  - Baseline repaired first, on main at the owner's request: govulncheck flagged GO-2026-6865 in klauspost/compress v1.18.7 (pulled in by testcontainers → moby/go-archive), published 2026-11-05. Raised to v1.20.2 (c57b7c5) and pushed.
+  - P1-03 packages:
+    - `internal/platform/money`: `BPS`/`Split` (floor of basis points, bounds 0 … 9.2 × 10¹⁴ and 0 … 10 000, remainder to the other party), plus `Currency`/`VND`.
+    - `ids`: UUIDv7 via the Go 1.27 standard `uuid` package, strict `Parse`. A forbidigo rule bans `uuid.New`/`uuid.NewV4` outside `ids`.
+    - `config`: `LoadPay`/`LoadTickets` for `PAY_DB_URL`, `TIX_DB_URL`, `BASTION_REDIS_URL`; errors are joined and name the variable, never its value.
+    - `db`: `Open` (pgxpool + ping, no password in errors); `MapError` (TD §1.5 sentinels, PgError kept); `InTx`, which reruns the whole transaction on 40001/40P01 from the body or COMMIT, at most 3 retries, full jitter ≤ 70 ms, stops on ctx.
+    - `logx`: slog JSON with `service`.
+- Verified:
+  - At e68445e: `go test ./internal/platform/...` → ok.
+  - At b68cded:
+    - `task check` → `check OK`;
+    - `task test` (`-race`) → all ok;
+    - real 40001/40P01 tests `-race -count=20` → ok (97.5 s);
+    - G4: 12 mutation rows, 13 runs, all killed (docs/briefs/completed/P1-03-platform-basics.md › Outcome).
+- Not done / next: P1-04 Architecture test, or P1-05 Ledger kit schema (critical). Metrics `deadlocks_total`/`guard_bypass_total` belong to P8-01; public ID prefixes to P2-15/P3; wiring into `cmd/*` to the first service item.
+- Decisions:
+  - Brief D1–D17. D15 (owner): no `lock_timeout` is set, and the spec gap goes to NOW.md.
+  - D11 wording was fixed after G5 (owner-approved brief update).
+  - Owner: small red-baseline fixes go straight to main, with no fix/ branch.
+  - New dependencies (E39):
+    - `github.com/jackc/puddle/v2` v2.2.3: the connection-pool core of `pgx/v5/pgxpool` (AD-15), same author as pgx.
+    - `golang.org/x/sync`: required by puddle (semaphore); not imported by Bastion code.
+  - No UUID module: the standard library `uuid` covers v7.
+- Surprises:
+  - The vulnerability database turned the baseline red with no code change.
+  - golangci-lint reports one issue per line, so the lint probe needed one call per line.
+  - A `select` with both timer and ctx ready picks at random, so `sleep` checks `ctx.Err()` first.
+  - G5 found no test of a 40001 raised at COMMIT. Added: a deferred constraint trigger that fails the first COMMIT only (a sequence is not rolled back), spiked on the local stack first.
+  - Waiting `backoff(n)` and cancellation during a running backoff are covered by review only (timing-dependent).
+
+---
+
 ## 2026-11-03 — P1-02 Local stack — Claude with Lukas
 
 - Done: `deploy/compose.yaml` (PostgreSQL 18.6 with `bastion_pay`/`bastion_tickets`, `track_commit_timestamp=on`, host port 55432; Redis 8.10.3); `deploy/postgres/init/10-bastion.sql` (roles `pay_owner`, `pay_app`, `tickets_owner`, `tickets_app`; cross-product CONNECT revoked); forward-only runner `internal/platform/db/migrate` (SHA-256 per applied file, advisory lock, one transaction per file, refuses edited, missing, out-of-order and transaction-ending files); `0001_baseline.sql` per product; `scripts/migrate` and `task up/down/migrate`; `internal/platform/db/dbtest` (testcontainers: same images, init and migrations); AGENTS.md › Commands.

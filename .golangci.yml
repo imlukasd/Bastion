@@ -28,6 +28,8 @@ linters:
           msg: "E21: business time comes from now() in SQL (TD §1.3)"
         - pattern: ^context\.(Background|TODO)$
           msg: "E28: pass the caller's context; tests use t.Context()"
+        - pattern: ^uuid\.(New|NewV4)$
+          msg: "AD-14: internal IDs are UUIDv7; use ids.New (TD §1.2)"
     funlen:
       lines: 60
       statements: -1
@@ -58,6 +60,9 @@ linters:
       - path: ^cmd/
         linters: [forbidigo]
         text: "E28"
+      - path: ^internal/platform/ids/
+        linters: [forbidigo]
+        text: "AD-14"
 
 issues:
   max-issues-per-linter: 0
