@@ -246,6 +246,8 @@ Stop and report instead of choosing when:
 - 2026-11-09 — step 3 done (strong); `go test ./internal/platform/config/` → ok
 - 2026-11-09 — step 4 done (strong); `go test -short ./internal/platform/db/` → ok; `go test -race -count=1 ./internal/platform/db/` → ok (11 tests, real 40001 and 40P01 included)
 - 2026-11-09 — step 5 done (strong); `go test ./internal/platform/logx/` → ok
+- 2026-11-09 — step 6 G3 (strong); `task check` → `check OK`; `task test` → all ok under -race; `go test ./internal/platform/...` → ok; `go test -race -count=5 -run 'TestInTx_Retries|TestInTx_StopsWhenContextEnds' ./internal/platform/db/` → ok (no flakes)
+- 2026-11-09 — step 6 G4 (strong); all 11 Mutations rows killed (12 runs: MaxRetries 2 and 4), each by the test the table names; tree restored after each
 
 ## Surprises
 
