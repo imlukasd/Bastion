@@ -4,7 +4,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 - **Updated:** 2026-11-09, Claude with Lukas (P1-03 started)
 - **Phase:** 1 Foundations, in progress (2/15 done)
-- **Active item:** P1-03 Platform basics (brief being drafted)
+- **Active item:** P1-03 Platform basics (item report written; waiting for the owner's `approve`)
 - **Branch:** item/P1-03-platform-basics
 
 ## State
@@ -16,7 +16,8 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 ## Next step
 
-1. Brief drafted at docs/briefs/active/P1-03-platform-basics.md (D15 answered by the owner); waiting for `approve brief`, then commit `docs(P1-03): add brief` and write the Test map tests (G2). Adds the pgx pool and transaction helper in `internal/platform/db`; integration tests use `dbtest.StartPostgres`.
+1. Owner reads the item report in docs/briefs/active/P1-03-platform-basics.md › Outcome and answers `approve` (G6), or `changes: …`.
+2. On approve: handoff (LOG.md with E39 reasons for `jackc/puddle/v2` and `golang.org/x/sync`, features.json evidence on b68cded, brief to completed/), `chore(P1-03): done`, merge `--no-ff` into main, baseline on main.
 
 ## Open questions (owner decides)
 

@@ -259,3 +259,65 @@ Stop and report instead of choosing when:
 - `pgxpool` also brings `golang.org/x/sync` (via puddle); both get an E39 reason in LOG.md.
 
 ## Outcome
+
+## Item report — P1-03 Platform basics: money, ids, config, transactions, logging
+
+Writer's assessment: ready for approval
+
+0. Executor: strong (main session, Opus); no implementer runs, no stops. Skipped gates: none (critical item).
+1. Scope: `git diff --stat main...HEAD` → 19 files, +1435 −7. Core files: `internal/platform/money/money.go`, `ids/ids.go`, `config/config.go`, `db/{db,errors,tx}.go`, `logx/logx.go`, `.golangci.yml`; `go.mod` +2 indirect requirements. Every path is in Files (`-check` → `plan OK, item P1-03 OK`).
+   Tests changed after the first `test(P1-03)` commit: `b68cded test(P1-03): cover commit retries and url leaks`, approved by the owner after G5. It adds `TestInTx_RetriesCommitSerializationFailure` and `TestOpen_InvalidURLHidesPassword`, and makes the deadlock test's barrier unable to hang (E33). No assertion was removed or loosened.
+2. Traceability:
+   | Clause | Test (file › name) | Result |
+   | --- | --- | --- |
+   | 1 money | `money_test.go › TestBPS_WorkedExamples, TestBPS_Floors, TestBPS_Bounds, TestBPS_RejectsOutOfRange, TestSplit_IsExact (100 000 seeded samples, math/big), TestSplit_RejectsOutOfRange`; forbidigo float rules in `task check` | pass |
+   | 2 ids | `ids_test.go › TestNew_IsVersion7, TestParse`; `db_integration_test.go › TestOpen_StoresUUIDv7` (`uuid_extract_version` = 7) | pass |
+   | 3 config | `config_test.go › TestLoadPay, TestLoadTickets, TestLoad_IgnoresTheOtherProduct, TestLoad_RejectsInvalidURLs` | pass |
+   | 4 pool | `db_integration_test.go › TestOpen_ConnectsAsApp`; `errors_test.go › TestOpen_InvalidURLHidesPassword` | pass |
+   | 5 retries | `› TestInTx_RetriesUpToThreeTimes, TestInTx_RetriesSerializationFailure, TestInTx_RetriesCommitSerializationFailure, TestInTx_RetriesDeadlockVictim, TestInTx_StopsWhenContextEnds`; `backoff_test.go › TestBackoff_FullJitter` | pass |
+   | 6 mapping | `errors_test.go › TestMapError, TestMapError_PassesOthersThrough`; `› TestInTx_DoesNotRetryOtherErrors, TestInTx_MapsCommitErrors` | pass |
+   | 7 logx | `logx_test.go › TestNew_WritesJSON` | pass |
+   | 8 unit tests | money bounds and error mapping run under `-short` in `task check` | pass |
+3. Guards (G4: each mutation applied, the named test run, reverted; 13 runs, all killed):
+   | Guard | Location | Test | Mutation |
+   | --- | --- | --- | --- |
+   | amount bound 0 … 9.2 × 10¹⁴ (TD §1.1) | money.go:27 | TestBPS_RejectsOutOfRange | condition → `false`: killed |
+   | bps range 0 … 10 000 (TD §19 CHECK) | money.go:30 | TestBPS_RejectsOutOfRange | condition → `false`: killed |
+   | floor, exact split (INV M1) | money.go:34, :44 | TestBPS_Floors, TestSplit_IsExact | `+5000` rounding: killed; rest `−1`: killed |
+   | 40001 retried | tx.go:50 | TestInTx_RetriesUpToThreeTimes/40001, TestInTx_RetriesSerializationFailure | code removed: killed |
+   | 40P01 retried | tx.go:50 | TestInTx_RetriesUpToThreeTimes/40P01, TestInTx_RetriesDeadlockVictim | code removed: killed |
+   | commit errors retried | tx.go:34–38 | TestInTx_RetriesCommitSerializationFailure | retry only `fn`'s error: killed |
+   | at most 3 retries (D9) | tx.go:16, :38 | TestInTx_RetriesUpToThreeTimes | `MaxRetries` 2: killed; 4: killed |
+   | 23505 never retried | tx.go:50 | TestInTx_DoesNotRetryOtherErrors/23505 | `23505` added: killed |
+   | backoff honours ctx | tx.go:56, :62 | TestInTx_StopsWhenContextEnds | `sleep(context.WithoutCancel(ctx), …)` (both checks): killed |
+   | one sentinel per SQLSTATE (TD §1.5) | errors.go:27 | TestMapError | 23505 ↔ 23514 swapped: killed |
+   | UUIDv7 only (AD-14) | ids.go:18; .golangci.yml forbidigo | TestNew_IsVersion7; lint probe | `NewV4`: killed; probe file reported AD-14 for `uuid.New` and `uuid.NewV4` |
+   Review only (timing-dependent, Surprises): that `InTx` actually waits `backoff(n)`; cancellation while a backoff timer runs (`ctx.Done()` case alone, tx.go:62).
+4. Verify (on b68cded, WSL2, Docker Engine 29.9.2):
+   - `go test ./internal/platform/...` → `ok` config, db (9.9 s), db/dbtest, db/migrate, ids, logx, money.
+   - `task check` → `check OK`.
+   - `task test` (`-race -count=1 ./...`) → all packages `ok` (db 11.0 s).
+   - `go test -race -count=20 -run 'TestInTx_Retries|TestInTx_StopsWhenContextEnds' ./internal/platform/db/` → `ok` 97.5 s (G3 concurrency, 20 runs).
+5. Spec: no deviations. Spec gap (owner, D15): TD §1.5 maps `55P03`, but no section sets `lock_timeout`. It is in NOW.md "Open questions".
+6. Decisions during the item:
+   - D15 answered by the owner: no `lock_timeout` set now.
+   - D11 wording fixed after G5 (owner-approved brief update): `BEGIN` errors share the path, and PostgreSQL never returns 40001/40P01 from `BEGIN`.
+   - `math/rand/v2` jitter needs no `//nolint` (gosec runs G101 only).
+7. Review (G5, reviewer subagent, fresh context): CHANGES NEEDED, with no defect in the code itself.
+   - 2 major, both resolved:
+     - E32: no test of a 40001 raised at COMMIT. Fixed by the new test (b68cded) and the mutation above.
+     - E39: `puddle/v2` and `golang.org/x/sync` need a reason. Recorded in LOG.md at handoff.
+   - 6 minor:
+     - G3 `-count=20`: run above.
+     - D11 wording: brief updated.
+     - Barrier could hang: fixed with `sync.Once`.
+     - No leak test for unparsable URLs: added.
+     - Backoff use and cancellation during the backoff are not tested: review only, recorded.
+     - NOW.md out of date: updated.
+   - Reviewer confirmed that the code matches the Contracts, that no E36 leak path exists, and that the commit order holds.
+8. Follow-ups:
+   - `lock_timeout` spec gap (NOW.md).
+   - `deadlocks_total` / `guard_bypass_total` (P8-01).
+   - Public ID prefixes (P2-15 / P3).
+   - Wiring `config`/`db`/`logx` into `cmd/*` (first service item).
+   - Next item: P1-04 Architecture test for module boundaries, or P1-05 Ledger kit schema.
