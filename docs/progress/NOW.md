@@ -16,10 +16,11 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 ## Next step
 
-1. Draft docs/briefs/active/P1-03-platform-basics.md (G1, critical: Locks/Race table/Mutations as they apply, no skipped gates): refs TD §1.1, §1.2, §1.5, §33, AD-14, AD-21; ask the owner the OPEN decisions; wait for `approve brief`. Adds the pgx pool and transaction helper in `internal/platform/db`; integration tests use `dbtest.StartPostgres`.
+1. Brief drafted at docs/briefs/active/P1-03-platform-basics.md (D15 answered by the owner); waiting for `approve brief`, then commit `docs(P1-03): add brief` and write the Test map tests (G2). Adds the pgx pool and transaction helper in `internal/platform/db`; integration tests use `dbtest.StartPostgres`.
 
 ## Open questions (owner decides)
 
+- Spec gap (P1-03 D15): TD §1.5 maps `55P03` (`lock_timeout`) but no section sets a `lock_timeout` value, so without one a lock wait never times out. Decide with the item that defines API and worker timeouts.
 - Docker Desktop cannot pull images: its proxy `http.docker.internal:3128` ends every Docker Hub request in `EOF` (also after the update to 4.97), while WSL itself reaches Docker Hub. Check Settings › Resources › Proxies (and any Windows proxy/VPN). Workaround above.
 - CI on GitHub Actions (TD §34.4): deferred by the owner on 2026-10-28; no CI item in the plan for now.
 
