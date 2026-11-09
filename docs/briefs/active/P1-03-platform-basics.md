@@ -240,6 +240,8 @@ Stop and report instead of choosing when:
 - pgx or the standard `uuid` package behaves differently from the D3 spike.
 
 ## Progress
+- 2026-11-09 — G2 tests committed (86724c7, strong); all fail on the stubs as shown to the owner.
+- 2026-11-09 — step 1 done (strong); `go test ./internal/platform/money/` → ok
 
 ## Surprises
 
