@@ -17,8 +17,8 @@ import (
 const (
 	RuleHidden   = "E2-hidden"   // no package imports a folder the scan skips
 	RuleProducts = "E2-products" // products import only their own product, platform and kit
-	RuleAudit    = "E2-audit"    // audit imports only platform
-	RuleSim      = "E2-sim"      // simulators import only platform
+	RuleAudit    = "E2-audit"    // audit imports only platform and audit
+	RuleSim      = "E2-sim"      // simulators import only platform and sim
 	RulePlatform = "E1-platform" // platform imports only platform
 	RuleKit      = "E1-kit"      // kit imports only platform and kit
 )
@@ -51,9 +51,9 @@ func reason(rule string) string {
 	case RuleProducts:
 		return "products import only their own product, platform and kit"
 	case RuleAudit:
-		return "audit imports only platform"
+		return "audit imports only platform and audit"
 	case RuleSim:
-		return "simulators import only platform"
+		return "simulators import only platform and sim"
 	case RulePlatform:
 		return "platform imports only platform"
 	case RuleKit:
