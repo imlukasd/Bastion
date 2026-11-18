@@ -35,12 +35,13 @@ Skip: none
 | D6 | Skip G2 or G5? | No; `Skip: none`. | owner, 2026-11-18 | Small item; the tests are most of the work and an independent review is cheap. |
 | D7 | `cmd/auditor`, `cmd/pspsim`, `cmd/banksim`? | `cmd/auditor` follows the audit rule; `cmd/pspsim` and `cmd/banksim` follow the sim rule. | writer | Same parties as their `internal` packages (D4's "by folder" applied to the other `cmd` entries the spec ties to a party). |
 | D8 | How are imports read? | `go/parser.ParseFile(…, parser.ImportsOnly)` on every `.go` file under the root, including `_test.go` files and files excluded by build tags. No new dependency. | spike | Spike 2026-11-18 (scratch dir, not committed): 78 files in 1.6 ms on this repo, every module-internal import found with its line. `go list` would miss files excluded by build tags and needs a buildable fixture; `x/tools/go/packages` is a new dependency (E39). |
-| D9 | Which folders are skipped? | Folders below the root named `testdata`, or starting with `.` or `_` (the folders the go command ignores). | writer | The lint fixtures in `internal/archtest/testdata` violate rules on purpose; `.git` and `.claude` hold no Go code of ours. |
+| D9 | Which folders are skipped? | Folders below the root named `testdata`, or starting with `.` or `_` (the folders `./...` ignores). Because their files are never scanned, importing such a folder is itself a violation for every importer (`RuleHidden`). | writer; `RuleHidden` owner, 2026-11-18 (G5) | The lint fixtures in `internal/archtest/testdata` violate rules on purpose; `.git` and `.claude` hold no Go code of ours. G5 showed that the go command still builds an import of such a folder by its full path, so a skipped package could carry `pay → pay/_old/y → tickets` unseen. |
 | D10 | Where does the module path come from? | The `module` line of `<root>/go.mod`; each fixture is a mini repository with its own `go.mod` naming `github.com/imlukasd/Bastion`. | writer | One code path for the repository and the fixtures; a renamed module cannot silently make every import "external". |
-| D11 | Direct or transitive imports? | Direct imports only. Every rule is checked on every edge, so with D3 a forbidden transitive path always contains a forbidden direct edge. | writer | Simple, and the message points at the exact line to change. |
+| D11 | Direct or transitive imports? | Direct imports only. Every constrained group (pay, tickets, audit, sim, platform, kit) has an allow-list made only of constrained groups (its own group, `platform`, `kit`), so a path that starts in a constrained group stays inside constrained groups edge by edge; with D9's `RuleHidden`, every forbidden transitive path contains a forbidden direct edge. | writer; corrected after G5, owner 2026-11-18 | Simple, and the message points at the exact line to change. The first version used a deny-list for pay and tickets ("everything except the other product"), and G5 built `pay → internal/shared → tickets` with no violation. |
 | D12 | How are fixtures organized? | One mini repository per rule group under `internal/archtest/testdata/arch/<case>/`, plus `clean` (allowed edges and skipped folders) and `broken` (a parse error). | writer | Each group proves its rule independently; `clean` proves there are no false positives. |
 | D13 | Code in a `_test.go` file or a normal file? | The checker in `imports.go` (normal file, package `archtest`), the tests in `imports_test.go`. | writer | Tests first (G2) compile against stubs; the checker obeys lint like other code. |
-| D14 | Update ENGINEERING E2? | Yes, its text names what archtest enforces: "`pay/**` and `tickets/**` (and `cmd/pay-*`, `cmd/tickets-*`) never import each other; `audit` and `cmd/auditor` import only `platform` among Bastion packages; simulators (`sim/**`, `cmd/pspsim`, `cmd/banksim`) import only `platform` (ARCH §7.1)." E1 is unchanged. | writer | The rule text and the test must agree; approving the brief approves the ENGINEERING change. |
+| D14 | Update ENGINEERING E2? | Yes, its text names what archtest enforces: "`pay/**` and `tickets/**` (and `cmd/pay-*`, `cmd/tickets-*`) import only their own product, `platform` and `kit`; `audit` (and `cmd/auditor`) imports only `platform` and `audit`; simulators (`sim/**`, `cmd/pspsim`, `cmd/banksim`) import only `platform` and `sim`; no package imports a `testdata`, `.x` or `_x` folder (ARCH §7.1)." E1 is unchanged. | writer; text updated after G5, owner 2026-11-18 | The rule text and the test must agree; approving the brief approves the ENGINEERING change. |
+| D15 | May pay or tickets import `internal/sim` (a simulator in a module test)? | No: products import only their own product, `platform` and `kit` (ARCH §7.1 rule 2 "Both may import `platform` and `kit`"). A test that needs a simulator lives in `test/**`. | owner, 2026-11-18 (G5) | Keeps the allow-list closed; adding `internal/sim` later is one row. |
 
 ## Files
 
@@ -60,7 +61,8 @@ package archtest
 
 // Rule names; Violation.Rule is one of them.
 const (
-	RuleProducts = "E2-products" // pay and tickets never import each other
+	RuleHidden   = "E2-hidden"   // no package imports a folder the scan skips
+	RuleProducts = "E2-products" // products import only their own product, platform and kit
 	RuleAudit    = "E2-audit"    // audit imports only platform
 	RuleSim      = "E2-sim"      // simulators import only platform
 	RulePlatform = "E1-platform" // platform imports only platform
@@ -83,7 +85,7 @@ type Violation struct {
 
 // String formats "<File>:<Line>: <From> imports <To> (<Rule>: <reason>)", where
 // reason is the comment of the Rule constant, e.g.
-// "internal/pay/funding/funding.go:5: internal/pay/funding imports internal/tickets/orders (E2-products: pay and tickets never import each other)".
+// "internal/pay/funding/funding.go:5: internal/pay/funding imports internal/tickets/orders (E2-products: products import only their own product, platform and kit)".
 func (v Violation) String() string
 
 // Scan reads the module path from <root>/go.mod and returns every import of a
@@ -101,35 +103,47 @@ func Check(imports []Import) []Violation
 
 A path `p` is "under `X`" when `p == X` or `p` starts with `X + "/"`; `cmd/pay-*` means a path starting with `cmd/pay-`.
 
-Rules (the importer is `From`, the target is `To`):
+Rules (the importer is `From`, the target is `To`). First, for every importer: a `To` with a path segment named `testdata` or starting with `.` or `_` is `RuleHidden`. Otherwise:
 
 | Importer `From` | Allowed targets | On any other target |
 | --- | --- | --- |
-| under `internal/pay`, or `cmd/pay-*` | everything except under `internal/tickets` | `RuleProducts` |
-| under `internal/tickets`, or `cmd/tickets-*` | everything except under `internal/pay` | `RuleProducts` |
+| under `internal/pay`, or `cmd/pay-*` | under `internal/pay`, under `internal/platform`, under `internal/kit` | `RuleProducts` |
+| under `internal/tickets`, or `cmd/tickets-*` | under `internal/tickets`, under `internal/platform`, under `internal/kit` | `RuleProducts` |
 | under `internal/audit`, or `cmd/auditor` | under `internal/platform`, under `internal/audit` | `RuleAudit` |
 | under `internal/sim`, `cmd/pspsim`, `cmd/banksim` | under `internal/platform`, under `internal/sim` | `RuleSim` |
 | under `internal/platform` | under `internal/platform` | `RulePlatform` |
 | under `internal/kit` | under `internal/platform`, under `internal/kit` | `RuleKit` |
 | anything else | everything | — |
 
-Fixtures: `internal/archtest/testdata/arch/<case>/`, each with `go.mod` = `module github.com/imlukasd/Bastion` + `go 1.27.0`; files are minimal (package clause, the imports, `var _ = x.Y` uses are not needed since nothing compiles them).
+Fixtures: `internal/archtest/testdata/arch/<case>/`, each with `go.mod` = `module github.com/imlukasd/Bastion` + `go 1.27.0` (in `products` the module path is quoted, `module "github.com/imlukasd/Bastion"`); files are minimal (package clause, the imports, `var _ = x.Y` uses are not needed since nothing compiles them).
 
 | Case | File → imported path | Expected |
 | --- | --- | --- |
 | `products` | `internal/pay/funding/funding.go` → `internal/tickets/orders` | `RuleProducts` |
 | | `internal/tickets/orders/orders_test.go` → `internal/pay/intents` | `RuleProducts` (test files count) |
 | | `cmd/pay-api/main.go` → `internal/tickets/catalog` | `RuleProducts` |
+| | `internal/pay/funding/bridge.go` → `internal/shared` (a package no rule covers) | `RuleProducts` |
+| | `internal/pay/intents/named.go` → named `tix "…/internal/tickets/orders"`, blank `_ "…/internal/tickets/catalog"`, dot `. "…/internal/tickets/resale"` | `RuleProducts` ×3 |
+| | `internal/pay/limits/limits.go` → `internal/kitx/ledger` (not `kit`), `internal/sim/psp` (D15) | `RuleProducts` ×2 |
+| | `internal/pay/root.go` → the module root (`To == ""`) | `RuleProducts` |
+| `hidden` | `internal/pay/p/p.go` → `internal/pay/testdata/x`, `internal/pay/_old/y`, `internal/pay/.cache/z` | `RuleHidden` ×3 |
+| | `test/integration/helpers.go` → `test/_shared` (an unconstrained importer) | `RuleHidden` |
+| | `internal/pay/_old/y/y.go` → `internal/tickets/orders` (never scanned) | none |
 | `audit` | `internal/audit/pay/check.go` → `internal/platform/db` (allowed), `internal/kit/ledger`, `internal/pay/merchants` | `RuleAudit` ×2 |
+| | `internal/audit/tickets/check.go` → `internal/platformx/util` (not `platform`) | `RuleAudit` |
 | | `cmd/auditor/main.go` → `internal/tickets/orders` | `RuleAudit` |
 | `sim` | `internal/sim/psp/psp.go` → `internal/pay/intents` | `RuleSim` |
+| | `internal/sim/psp/card.go` → `internal/simulators/x` (not `sim`) | `RuleSim` |
 | | `internal/sim/bank/bank.go` → `internal/tickets/payouts`, `internal/kit/outbox` | `RuleSim` ×2 |
 | | `cmd/pspsim/main.go` → `internal/pay/funding` | `RuleSim` |
 | `layers` | `internal/platform/db/db.go` → `internal/kit/ledger` | `RulePlatform` |
+| | `internal/platform/ids/ids.go` → `internal/platformx/util` (not `platform`) | `RulePlatform` |
+| | `internal/kit/fsm/fsm.go` → `internal/kitx/x` (not `kit`) | `RuleKit` |
 | | `internal/kit/ledger/ledger.go` → `internal/pay/customers` | `RuleKit` |
 | | `internal/kit/outbox/outbox.go` → `internal/audit` | `RuleKit` |
 | `clean` | allowed edges: pay → platform, kit, pay; tickets → platform, kit, tickets; audit → platform, audit; sim/psp → platform, sim/bank; kit → platform, kit; platform → platform; `cmd/pay-api` → pay, platform; `cmd/tickets-api` → tickets; `cmd/bastionctl` → pay, tickets; `test/integration` → pay, tickets; stdlib and `github.com/jackc/pgx/v5` imports; a file with `//go:build ignore` that imports only allowed paths | none |
 | | skipped folders, each with a file that would break `RuleProducts`: `internal/pay/testdata/`, `internal/pay/.hidden/`, `internal/pay/_old/` | none |
+| | folder-boundary look-alikes that no rule covers, each importing a product: `internal/payments/x` → tickets, `internal/platforms/x` → tickets, `internal/simulate/x` → pay, `cmd/payroll` → tickets, `cmd/audits` → pay | none |
 | `broken` | `internal/x/x.go` with an unterminated import string | `Scan` error naming `internal/x/x.go` |
 
 ## Steps
@@ -139,6 +153,9 @@ Fixtures: `internal/archtest/testdata/arch/<case>/`, each with `go.mod` = `modul
 3. Implement `Check` and `String`. Verify: `go test ./internal/archtest/...` → ok. Commit `feat(P1-04): check import rules`.
 4. ENGINEERING E2 text (D14). Verify: `task check` → `check OK`. Commit `docs(P1-04): name archtest rules in e2`.
 5. Gates: `task test` (G3), reviewer (G5), item report.
+6. G5 round (brief update approved 2026-11-18): tests and fixtures per the updated Contracts and Test map. Verify: `go test ./internal/archtest/ -run 'Imports|Scan|Violation'` → FAIL only on the new expectations (bridge, named/dot/blank, `kitx`, sim, module root, `hidden`, boundary fixtures, the new reason text, error wrapping); `go vet ./internal/archtest/` → clean. Commit `test(P1-04): …` after the owner's `ok tests`.
+7. `RuleHidden`, the allow-lists for products, the `Scan` doc comment with its Errors paragraph. Verify: `go test ./internal/archtest/...` → ok; golangci-lint → 0 issues. Commit `fix(P1-04): close import rule gaps`.
+8. ENGINEERING E2 text (D14 as updated). Verify: `task check` → `check OK`. Commit `docs(P1-04): update e2 for allow-lists`. Then G3 again and a G5 re-review of steps 6–8.
 
 ## Test map
 
@@ -147,13 +164,15 @@ All tests in `internal/archtest/imports_test.go`; none skips under `-short`.
 | Clause | Test | Asserts |
 | --- | --- | --- |
 | 1–3 | `TestImports_RepoFollowsRules` | `Scan("../..")` has no error, contains `{From: "internal/platform/db/dbtest", To: "internal/platform/db/migrate"}` (the scan is not vacuous), and `Check` returns no violation (each printed with `String`). |
-| 1, 4 | `TestImports_FixturesReportExpectedViolations/products` | Exactly the `products` rows: `file:line rule` set equality. |
+| 1, 4 | `TestImports_FixturesReportExpectedViolations/products` | Exactly the `products` rows, as the ordered list of `file:line rule` in `Scan` order (`slices.Equal`: no duplicate, input order kept). |
+| 1, 4 (D9) | `…/hidden` | Exactly the `hidden` rows; the never-scanned `y.go` adds nothing. |
 | 2, 4 | `…/audit` | Exactly the `audit` rows; the allowed `internal/platform/db` import is not reported. |
 | 3, 4 | `…/sim` | Exactly the `sim` rows. |
 | 4 (D3) | `…/layers` | Exactly the `layers` rows. |
-| 4 | `…/clean` | No violation; `Scan` found the `clean` imports (count > 0) and none from a skipped folder. |
-| 4 | `TestScan_Errors` | Missing `go.mod` → error; `broken` → error whose text contains `internal/x/x.go`. |
-| 4 | `TestViolation_String` | The exact `String` example of the Contracts. |
+| 4 | `…/clean` | No violation, look-alike folders included. |
+| 4 | `TestScan_Clean` | `Scan` of `clean` finds exactly its Bastion imports (27): none from the standard library, third parties or skipped folders; the `//go:build ignore` file is read. |
+| 4 | `TestScan_Errors` | Missing `go.mod` → `errors.Is(err, fs.ErrNotExist)`; a `go.mod` without a module line → error; `broken` → `errors.As(err, *scanner.ErrorList)` and the text contains `internal/x/x.go`. |
+| 4 | `TestViolation_String` | The exact `String` example of the Contracts, and each rule's reason. |
 
 ## Out of scope
 
@@ -174,6 +193,28 @@ Stop and report instead of choosing when:
 
 ## Progress
 
+- 2026-11-18 — step 1 done (strong): stubs, 6 fixture repositories, `imports_test.go`; `go test ./internal/archtest/ -run 'Imports|Scan|Violation'` → FAIL on "not implemented" and empty `String` only; owner `ok tests` → d415963.
+- 2026-11-18 — step 2 done (strong): `Scan`; `TestScan_Clean`, `TestScan_Errors`, `TestImports_RepoFollowsRules` → PASS; fixture test still FAIL (Check stub) → 4499a53.
+- 2026-11-18 — step 3 done (strong): `Check`, `String`; `go test ./internal/archtest/...` → ok; golangci-lint → 0 issues → 9daac61.
+- 2026-11-18 — step 4 done (strong): ENGINEERING E2 text; `task check` → `check OK` → 3bbb2fe.
+- 2026-11-18 — step 5, G3 (strong): `task test` (`-race`) at 3bbb2fe → all ok (archtest 4.9 s, db 11.1 s, dbtest 12.5 s, migrate 15.1 s). G5 reviewer started.
+
 ## Surprises
+
+- Two tests beyond the Test map, inside Files and the Contracts: `TestScan_Clean` (exact count of 22, build-tagged file read, skipped folders) and a `go.mod` without a module line in `TestScan_Errors`. Shown to the owner before `ok tests`.
+- The first draft of the fixture test had cognitive complexity 21 (gocognit > 15); the set comparison moved to a helper `sameSet` before the test commit.
+- First `task test` run: Docker was unavailable in the WSL distro, so every `dbtest` integration test failed at container start (environment, not code); `go test -race ./internal/archtest/...` → ok. Second run: the Docker Engine hung (16 testcontainers containers stuck in `Created`, `docker ps` unresponsive, tests timed out at 600 s). The owner restarted Docker Desktop; the stuck containers (label `org.testcontainers`) were removed; the third run was green.
+- G5 (2026-11-18), CHANGES NEEDED. Brief gaps:
+  - the deny-list for products let `pay → internal/shared → tickets` through, so D11's argument was wrong;
+  - skipped folders can still be imported by full path.
+
+  Test gaps, mutants that survived:
+  - `under` without the `/` boundary;
+  - `%w` → `%v`;
+  - duplicate violations;
+  - module-root import;
+  - quoted module line.
+
+  Minor: the `Scan` doc lacked its Errors paragraph, and the E2 text omitted the own-group exemptions. The owner approved the brief update (D9, D11, D14, D15, Contracts, fixtures, Test map, steps 6–8).
 
 ## Outcome
