@@ -43,14 +43,15 @@ func TestImports_FixturesReportExpectedViolations(t *testing.T) {
 	cases := map[string][]string{
 		"products": {
 			"cmd/pay-api/main.go:7 " + RuleProducts,
+			"cmd/tickets-api/main.go:3 " + RuleProducts,
 			"internal/pay/funding/bridge.go:3 " + RuleProducts, // a package no rule covers
 			"internal/pay/funding/funding.go:5 " + RuleProducts,
-			"internal/pay/intents/named.go:4 " + RuleProducts, // named import
-			"internal/pay/intents/named.go:5 " + RuleProducts, // blank import
-			"internal/pay/intents/named.go:6 " + RuleProducts, // dot import
-			"internal/pay/limits/limits.go:4 " + RuleProducts, // kitx is not kit
-			"internal/pay/limits/limits.go:5 " + RuleProducts, // sim (D15)
-			"internal/pay/root.go:3 " + RuleProducts,          // the module root
+			"internal/pay/intents/named.go:4 " + RuleProducts,     // named import
+			"internal/pay/intents/named.go:5 " + RuleProducts,     // blank import
+			"internal/pay/intents/named.go:6 " + RuleProducts,     // dot import
+			"internal/pay/limits/limits.go:4 " + RuleProducts,     // kitx is not kit
+			"internal/pay/limits/limits.go:5 " + RuleProducts,     // sim (D15)
+			"internal/pay/root.go:3 " + RuleProducts,              // the module root
 			"internal/tickets/orders/bridge.go:3 " + RuleProducts, // a package no rule covers
 			"internal/tickets/orders/orders_test.go:3 " + RuleProducts,
 		},
@@ -67,6 +68,7 @@ func TestImports_FixturesReportExpectedViolations(t *testing.T) {
 			"internal/audit/tickets/check.go:3 " + RuleAudit, // platformx is not platform
 		},
 		"sim": {
+			"cmd/banksim/main.go:3 " + RuleSim,
 			"cmd/pspsim/main.go:4 " + RuleSim,
 			"internal/sim/bank/bank.go:4 " + RuleSim,
 			"internal/sim/bank/bank.go:6 " + RuleSim,
@@ -99,7 +101,7 @@ func TestImports_FixturesReportExpectedViolations(t *testing.T) {
 	}
 }
 
-// TestScan_Clean: the clean fixture yields exactly its 27 Bastion imports:
+// TestScan_Clean: the clean fixture yields exactly its 32 Bastion imports:
 // none from the standard library, third parties or skipped folders, and the
 // file excluded by a build tag is read.
 func TestScan_Clean(t *testing.T) {
@@ -107,8 +109,8 @@ func TestScan_Clean(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
-	if len(imports) != 27 {
-		t.Errorf("Scan found %d imports, want 27: %v", len(imports), imports)
+	if len(imports) != 32 {
+		t.Errorf("Scan found %d imports, want 32: %v", len(imports), imports)
 	}
 	first := Import{File: "internal/pay/funding/funding.go", Line: 8, From: "internal/pay/funding", To: "internal/kit/ledger"}
 	if !slices.Contains(imports, first) {
@@ -171,8 +173,8 @@ func TestViolation_String(t *testing.T) {
 	reasons := map[string]string{
 		RuleHidden:   "no package imports a folder the scan skips",
 		RuleProducts: "products import only their own product, platform and kit",
-		RuleAudit:    "audit imports only platform",
-		RuleSim:      "simulators import only platform",
+		RuleAudit:    "audit imports only platform and audit",
+		RuleSim:      "simulators import only platform and sim",
 		RulePlatform: "platform imports only platform",
 		RuleKit:      "kit imports only platform and kit",
 	}
