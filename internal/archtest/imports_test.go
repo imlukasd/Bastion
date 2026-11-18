@@ -1,7 +1,10 @@
 package archtest
 
 import (
+	"errors"
 	"fmt"
+	"go/scanner"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -35,29 +38,46 @@ func TestImports_RepoFollowsRules(t *testing.T) {
 }
 
 // TestImports_FixturesReportExpectedViolations: each fixture reports exactly
-// its violations, as "file:line rule".
+// its violations, as "file:line rule", in Scan order and without duplicates.
 func TestImports_FixturesReportExpectedViolations(t *testing.T) {
 	cases := map[string][]string{
 		"products": {
 			"cmd/pay-api/main.go:7 " + RuleProducts,
+			"internal/pay/funding/bridge.go:3 " + RuleProducts, // a package no rule covers
 			"internal/pay/funding/funding.go:5 " + RuleProducts,
+			"internal/pay/intents/named.go:4 " + RuleProducts, // named import
+			"internal/pay/intents/named.go:5 " + RuleProducts, // blank import
+			"internal/pay/intents/named.go:6 " + RuleProducts, // dot import
+			"internal/pay/limits/limits.go:4 " + RuleProducts, // kitx is not kit
+			"internal/pay/limits/limits.go:5 " + RuleProducts, // sim (D15)
+			"internal/pay/root.go:3 " + RuleProducts,          // the module root
 			"internal/tickets/orders/orders_test.go:3 " + RuleProducts,
+		},
+		"hidden": {
+			"internal/pay/p/p.go:4 " + RuleHidden,
+			"internal/pay/p/p.go:5 " + RuleHidden,
+			"internal/pay/p/p.go:6 " + RuleHidden,
+			"test/integration/helpers.go:3 " + RuleHidden,
 		},
 		"audit": {
 			"cmd/auditor/main.go:5 " + RuleAudit,
 			"internal/audit/pay/check.go:5 " + RuleAudit,
 			"internal/audit/pay/check.go:6 " + RuleAudit,
+			"internal/audit/tickets/check.go:3 " + RuleAudit, // platformx is not platform
 		},
 		"sim": {
 			"cmd/pspsim/main.go:4 " + RuleSim,
 			"internal/sim/bank/bank.go:4 " + RuleSim,
 			"internal/sim/bank/bank.go:6 " + RuleSim,
+			"internal/sim/psp/card.go:3 " + RuleSim, // simulators is not sim
 			"internal/sim/psp/psp.go:3 " + RuleSim,
 		},
 		"layers": {
+			"internal/kit/fsm/fsm.go:3 " + RuleKit, // kitx is not kit
 			"internal/kit/ledger/ledger.go:4 " + RuleKit,
 			"internal/kit/outbox/outbox.go:3 " + RuleKit,
 			"internal/platform/db/db.go:3 " + RulePlatform,
+			"internal/platform/ids/ids.go:3 " + RulePlatform, // platformx is not platform
 		},
 		"clean": nil,
 	}
@@ -71,27 +91,14 @@ func TestImports_FixturesReportExpectedViolations(t *testing.T) {
 			for _, v := range Check(imports) {
 				got = append(got, fmt.Sprintf("%s:%d %s", v.File, v.Line, v.Rule))
 			}
-			sameSet(t, want, got)
+			if !slices.Equal(got, want) {
+				t.Errorf("violations, in order:\n got %q\nwant %q", got, want)
+			}
 		})
 	}
 }
 
-// sameSet reports every entry only in want and every entry only in got.
-func sameSet(t *testing.T, want, got []string) {
-	t.Helper()
-	for _, w := range want {
-		if !slices.Contains(got, w) {
-			t.Errorf("expected, not reported: %s", w)
-		}
-	}
-	for _, g := range got {
-		if !slices.Contains(want, g) {
-			t.Errorf("reported, not expected: %s", g)
-		}
-	}
-}
-
-// TestScan_Clean: the clean fixture yields exactly its 22 Bastion imports:
+// TestScan_Clean: the clean fixture yields exactly its 27 Bastion imports:
 // none from the standard library, third parties or skipped folders, and the
 // file excluded by a build tag is read.
 func TestScan_Clean(t *testing.T) {
@@ -99,8 +106,8 @@ func TestScan_Clean(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
-	if len(imports) != 22 {
-		t.Errorf("Scan found %d imports, want 22: %v", len(imports), imports)
+	if len(imports) != 27 {
+		t.Errorf("Scan found %d imports, want 27: %v", len(imports), imports)
 	}
 	first := Import{File: "internal/pay/funding/funding.go", Line: 8, From: "internal/pay/funding", To: "internal/kit/ledger"}
 	if !slices.Contains(imports, first) {
@@ -120,10 +127,11 @@ func TestScan_Clean(t *testing.T) {
 }
 
 // TestScan_Errors: a missing go.mod, a go.mod without a module line and a
-// file that does not parse are errors; the parse error names the file.
+// file that does not parse are errors; errors wrap their cause and the parse
+// error names the file.
 func TestScan_Errors(t *testing.T) {
-	if _, err := Scan(t.TempDir()); err == nil {
-		t.Error("Scan without go.mod: no error")
+	if _, err := Scan(t.TempDir()); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Scan without go.mod: error %v, want one wrapping fs.ErrNotExist", err)
 	}
 
 	noModule := t.TempDir()
@@ -138,6 +146,10 @@ func TestScan_Errors(t *testing.T) {
 	if err == nil {
 		t.Fatal("Scan(broken): no error")
 	}
+	var parseErrs scanner.ErrorList
+	if !errors.As(err, &parseErrs) {
+		t.Errorf("Scan(broken) error %v does not wrap the parser's scanner.ErrorList", err)
+	}
 	if !strings.Contains(filepath.ToSlash(err.Error()), "internal/x/x.go") {
 		t.Errorf("Scan(broken) error %q does not name internal/x/x.go", err)
 	}
@@ -150,13 +162,14 @@ func TestViolation_String(t *testing.T) {
 		Import: Import{File: "internal/pay/funding/funding.go", Line: 5, From: "internal/pay/funding", To: "internal/tickets/orders"},
 		Rule:   RuleProducts,
 	}
-	want := "internal/pay/funding/funding.go:5: internal/pay/funding imports internal/tickets/orders (E2-products: pay and tickets never import each other)"
+	want := "internal/pay/funding/funding.go:5: internal/pay/funding imports internal/tickets/orders (E2-products: products import only their own product, platform and kit)"
 	if got := v.String(); got != want {
 		t.Errorf("String:\n got %q\nwant %q", got, want)
 	}
 
 	reasons := map[string]string{
-		RuleProducts: "pay and tickets never import each other",
+		RuleHidden:   "no package imports a folder the scan skips",
+		RuleProducts: "products import only their own product, platform and kit",
 		RuleAudit:    "audit imports only platform",
 		RuleSim:      "simulators import only platform",
 		RulePlatform: "platform imports only platform",

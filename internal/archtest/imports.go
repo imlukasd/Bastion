@@ -14,7 +14,8 @@ import (
 
 // Rule names; Violation.Rule is one of them.
 const (
-	RuleProducts = "E2-products" // pay and tickets never import each other
+	RuleHidden   = "E2-hidden"   // no package imports a folder the scan skips
+	RuleProducts = "E2-products" // products import only their own product, platform and kit
 	RuleAudit    = "E2-audit"    // audit imports only platform
 	RuleSim      = "E2-sim"      // simulators import only platform
 	RulePlatform = "E1-platform" // platform imports only platform
