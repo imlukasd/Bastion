@@ -51,6 +51,7 @@ func TestImports_FixturesReportExpectedViolations(t *testing.T) {
 			"internal/pay/limits/limits.go:4 " + RuleProducts, // kitx is not kit
 			"internal/pay/limits/limits.go:5 " + RuleProducts, // sim (D15)
 			"internal/pay/root.go:3 " + RuleProducts,          // the module root
+			"internal/tickets/orders/bridge.go:3 " + RuleProducts, // a package no rule covers
 			"internal/tickets/orders/orders_test.go:3 " + RuleProducts,
 		},
 		"hidden": {
