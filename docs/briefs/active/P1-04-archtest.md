@@ -63,8 +63,8 @@ package archtest
 const (
 	RuleHidden   = "E2-hidden"   // no package imports a folder the scan skips
 	RuleProducts = "E2-products" // products import only their own product, platform and kit
-	RuleAudit    = "E2-audit"    // audit imports only platform
-	RuleSim      = "E2-sim"      // simulators import only platform
+	RuleAudit    = "E2-audit"    // audit imports only platform and audit
+	RuleSim      = "E2-sim"      // simulators import only platform and sim
 	RulePlatform = "E1-platform" // platform imports only platform
 	RuleKit      = "E1-kit"      // kit imports only platform and kit
 )
@@ -122,6 +122,8 @@ Fixtures: `internal/archtest/testdata/arch/<case>/`, each with `go.mod` = `modul
 | `products` | `internal/pay/funding/funding.go` → `internal/tickets/orders` | `RuleProducts` |
 | | `internal/tickets/orders/orders_test.go` → `internal/pay/intents` | `RuleProducts` (test files count) |
 | | `cmd/pay-api/main.go` → `internal/tickets/catalog` | `RuleProducts` |
+| | `cmd/tickets-api/main.go` → `internal/pay/intents` | `RuleProducts` |
+| | `internal/tickets/orders/bridge.go` → `internal/shared` | `RuleProducts` |
 | | `internal/pay/funding/bridge.go` → `internal/shared` (a package no rule covers) | `RuleProducts` |
 | | `internal/pay/intents/named.go` → named `tix "…/internal/tickets/orders"`, blank `_ "…/internal/tickets/catalog"`, dot `. "…/internal/tickets/resale"` | `RuleProducts` ×3 |
 | | `internal/pay/limits/limits.go` → `internal/kitx/ledger` (not `kit`), `internal/sim/psp` (D15) | `RuleProducts` ×2 |
@@ -136,6 +138,7 @@ Fixtures: `internal/archtest/testdata/arch/<case>/`, each with `go.mod` = `modul
 | | `internal/sim/psp/card.go` → `internal/simulators/x` (not `sim`) | `RuleSim` |
 | | `internal/sim/bank/bank.go` → `internal/tickets/payouts`, `internal/kit/outbox` | `RuleSim` ×2 |
 | | `cmd/pspsim/main.go` → `internal/pay/funding` | `RuleSim` |
+| | `cmd/banksim/main.go` → `internal/pay/funding` | `RuleSim` |
 | `layers` | `internal/platform/db/db.go` → `internal/kit/ledger` | `RulePlatform` |
 | | `internal/platform/ids/ids.go` → `internal/platformx/util` (not `platform`) | `RulePlatform` |
 | | `internal/kit/fsm/fsm.go` → `internal/kitx/x` (not `kit`) | `RuleKit` |
@@ -143,7 +146,7 @@ Fixtures: `internal/archtest/testdata/arch/<case>/`, each with `go.mod` = `modul
 | | `internal/kit/outbox/outbox.go` → `internal/audit` | `RuleKit` |
 | `clean` | allowed edges: pay → platform, kit, pay; tickets → platform, kit, tickets; audit → platform, audit; sim/psp → platform, sim/bank; kit → platform, kit; platform → platform; `cmd/pay-api` → pay, platform; `cmd/tickets-api` → tickets; `cmd/bastionctl` → pay, tickets; `test/integration` → pay, tickets; stdlib and `github.com/jackc/pgx/v5` imports; a file with `//go:build ignore` that imports only allowed paths | none |
 | | skipped folders, each with a file that would break `RuleProducts`: `internal/pay/testdata/`, `internal/pay/.hidden/`, `internal/pay/_old/` | none |
-| | folder-boundary look-alikes that no rule covers, each importing a product: `internal/payments/x` → tickets, `internal/platforms/x` → tickets, `internal/simulate/x` → pay, `cmd/payroll` → tickets, `cmd/audits` → pay | none |
+| | folder-boundary look-alikes that no rule covers, each importing a product: `internal/payments/x` → tickets, `internal/platforms/x` → tickets, `internal/simulate/x` → pay, `internal/ticketsx/x`, `internal/auditx/x`, `internal/kitx/x` → pay, `cmd/payroll` → tickets, `cmd/audits`, `cmd/ticketsctl`, `cmd/pspx` → pay | none |
 | `broken` | `internal/x/x.go` with an unterminated import string | `Scan` error naming `internal/x/x.go` |
 
 ## Steps
@@ -170,7 +173,7 @@ All tests in `internal/archtest/imports_test.go`; none skips under `-short`.
 | 3, 4 | `…/sim` | Exactly the `sim` rows. |
 | 4 (D3) | `…/layers` | Exactly the `layers` rows. |
 | 4 | `…/clean` | No violation, look-alike folders included. |
-| 4 | `TestScan_Clean` | `Scan` of `clean` finds exactly its Bastion imports (27): none from the standard library, third parties or skipped folders; the `//go:build ignore` file is read. |
+| 4 | `TestScan_Clean` | `Scan` of `clean` finds exactly its Bastion imports (32): none from the standard library, third parties or skipped folders; the `//go:build ignore` file is read. |
 | 4 | `TestScan_Errors` | Missing `go.mod` → `errors.Is(err, fs.ErrNotExist)`; a `go.mod` without a module line → error; `broken` → `errors.As(err, *scanner.ErrorList)` and the text contains `internal/x/x.go`. |
 | 4 | `TestViolation_String` | The exact `String` example of the Contracts, and each rule's reason. |
 
