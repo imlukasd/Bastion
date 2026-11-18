@@ -15,6 +15,32 @@ Template:
 
 ---
 
+## 2026-11-18 — P1-04 Architecture test for module boundaries — Claude with Lukas
+
+- Done:
+  - Baseline repaired first, on main: govulncheck flagged GO-2026-6859 (net/http, standard library, published 2026-11-11). The owner installed Go 1.27.4 in WSL; `go.mod` toolchain, AGENTS.md and NOW.md moved to 1.27.4 (4d3103e), pushed.
+  - `internal/archtest/imports.go`:
+    - `Scan`: go/parser, ImportsOnly, every `.go` file incl. `_test.go` and build-tagged files; skips `testdata`, `.x`, `_x`; module path from `go.mod`.
+    - `Check` with rules E2-hidden, E2-products, E2-audit, E2-sim, E1-platform, E1-kit, all allow-lists.
+  - 7 fixture repositories under `internal/archtest/testdata/arch/`.
+  - ENGINEERING E2 text names what archtest enforces.
+- Verified:
+  - At 9dd37eb: `go test ./internal/archtest/...` → ok; `task check` → `check OK`.
+  - At c2e2e84: `task test` (`-race`) → all ok.
+  - Reviewer mutation run: 37 mutants, 36 killed (docs/briefs/completed/P1-04-archtest.md › Outcome).
+- Not done / next: P1-05 Ledger kit schema (critical) or P1-10 Idempotency kit. Optional `cmd/bankx` look-alike fixture (the one surviving mutant, accepted).
+- Decisions:
+  - Brief D1–D15. Owner after G5: allow-lists instead of a deny-list for products (D11), `RuleHidden` (D9), products may not import `internal/sim` (D15), E2 and reason texts name the own-group exemptions (D14).
+  - No new dependency.
+  - Plan: P1-04 `verify` unchanged.
+- Surprises:
+  - G5 round 1 found two real holes in the writer's rule design, both built and confirmed by the reviewer: `pay → internal/shared → tickets`, and imports of skipped folders. It also found 10 mutants the tests missed.
+  - The writer ran only `task test` after one test commit and reported the baseline green while gofmt failed. Since then `task check` and `task test` both run after every commit.
+  - Docker in WSL was first unavailable, then hung, with testcontainers stuck in `Created`. A Docker Desktop restart and removing the `org.testcontainers` containers fixed it.
+  - Consequence for later items: generated Go code (sqlc) must live under `internal/<product>/**` (NOW.md).
+
+---
+
 ## 2026-11-09 — P1-03 Platform basics — Claude with Lukas
 
 - Done:

@@ -236,6 +236,8 @@ Stop and report instead of choosing when:
 
 Writer's assessment: ready for approval
 
+Owner: `approve`, 2026-11-18.
+
 0. Executor: strong (main session, Opus); no implementer runs, no stops. Skipped gates: none (G4 does not apply: not critical; mutation runs were done anyway, item 3).
 1. Scope: `git diff --stat main...HEAD` → 64 files, +880 −8; without fixtures: 6 files, +638 −8. Core files: `internal/archtest/imports.go` (Scan, Check, rules), `imports_test.go`, 7 fixture repositories under `internal/archtest/testdata/arch/` (`products`, `hidden`, `audit`, `sim`, `layers`, `clean`, `broken`); `docs/ENGINEERING.md` E2 text. No new dependency. Every path is in Files (`-check` → `plan OK, item P1-04 OK`).
    Tests changed after the first `test(P1-04)` commit, each approved by the owner after G5:
