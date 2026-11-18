@@ -107,7 +107,7 @@ The full loop is the default. A step that adds nothing to correctness for an ite
 - Docs, code and comments in English.
 - Branches: `item/<ID>-<slug>`, merged into `main` with `--no-ff` after approval, so verified commits stay in `main`'s history. A red baseline that belongs to no item is fixed on `fix/<slug>` and merged the same way after the owner approves the diff.
 - Commits: `<type>(<ID>): <summary>`, type one of `feat`, `fix`, `test`, `docs`, `chore`, `refactor`; lowercase, imperative, under ~60 characters; no names and no trailers (no `Co-Authored-By`). An owner approval is the commit itself, made only after the owner's answer: the brief (`docs(<ID>): add brief`, later `docs(<ID>): update brief …`) and, unless the brief skips G2, the tests (`test(<ID>): …`).
-- Commands (Taskfile.yml, TD §35.1). Prerequisites: Go 1.27.3 (go.dev MSI; the auto-downloaded toolchain is blocked by Windows Application Control), task 3.54.0 (`winget install Task.Task`), gcc for `-race`, Docker from P1-02.
+- Commands (Taskfile.yml, TD §35.1). Prerequisites: Go 1.27.4 (go.dev MSI; the auto-downloaded toolchain is blocked by Windows Application Control), task 3.54.0 (`winget install Task.Task`), gcc for `-race`, Docker from P1-02.
   - `task check`: the baseline: build, vet, golangci-lint, govulncheck, unit tests (`-short`), plan check. Prints failures only; `check OK` when green.
   - `task test`: the full suite with `-race` (G3); integration tests need Docker.
   - `task up` / `task down`: PostgreSQL 18 (`bastion_pay`, `bastion_tickets`) on `127.0.0.1:55432` and Redis 8 on `127.0.0.1:6379` (`deploy/compose.yaml`). The init SQL runs only on an empty volume: after changing it, `task down -- -v`.

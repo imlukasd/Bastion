@@ -19,7 +19,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
     - `db.Open`, `db.InTx` (retries 40001/40P01, at most 3), `db.MapError` + sentinels (`ErrDuplicate` …);
     - `logx.New`.
 - Baseline: `task check` → `check OK`. Full suite: `task test` (needs Docker; green under `-race`).
-- Environment: WSL2, Go 1.27.3, task 3.54.0, Docker Desktop 4.97 (Engine 29.9.2); enable WSL integration for the distro. A native PostgreSQL on the Windows host holds 5432, hence 55432. When Docker Desktop's pulls fail: `go run github.com/google/go-containerregistry/cmd/crane@v0.20.6 pull <image> <file>.tar`, then `docker load -i <file>.tar`.
+- Environment: WSL2, Go 1.27.4, task 3.54.0, Docker Desktop 4.97 (Engine 29.9.2); enable WSL integration for the distro. A native PostgreSQL on the Windows host holds 5432, hence 55432. When Docker Desktop's pulls fail: `go run github.com/google/go-containerregistry/cmd/crane@v0.20.6 pull <image> <file>.tar`, then `docker load -i <file>.tar`.
 - Loop: item brief (G1) → tests (G2, unless `Skip: G2`) → implementation → G3–G5 → owner's `approve` → merge `--no-ff` (AGENTS.md).
 
 ## Next step
