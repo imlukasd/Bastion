@@ -4,7 +4,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 - **Updated:** 2026-11-18, Claude with Lukas (P1-04 started)
 - **Phase:** 1 Foundations, in progress (3/15 done)
-- **Active item:** P1-04 Architecture test for module boundaries (brief being drafted)
+- **Active item:** P1-04 Architecture test for module boundaries (brief approved; tests being written)
 - **Branch:** item/P1-04-archtest
 
 ## State
@@ -24,7 +24,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 ## Next step
 
-1. Draft docs/briefs/active/P1-04-archtest.md (G1, not critical, `Executor: strong`): refs ARCH §7.1, TD §2, ENGINEERING E1/E2. Owner agreed the direction on 2026-11-18: go/parser over all `.go` files incl. `_test.go`; audit and sim may import only `platform` among internal packages; add E1 rule that `platform`/`kit` import no product, audit or sim code; `cmd/pay-*` and `cmd/tickets-*` never import the other product; `test/**` unconstrained; no G2/G5 skip. Wait for `approve brief`.
+1. Step 1 of docs/briefs/active/P1-04-archtest.md (G2): stubs in `internal/archtest/imports.go`, fixtures in `internal/archtest/testdata/arch/`, `imports_test.go`; show the tests failing for the right reason; on the owner's `ok tests` commit `test(P1-04): …`. Then steps 2–5 (`Executor: strong`).
 
 ## Open questions (owner decides)
 
