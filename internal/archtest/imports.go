@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -45,8 +46,10 @@ func (v Violation) String() string {
 // reason explains a rule in the words of its constant's comment.
 func reason(rule string) string {
 	switch rule {
+	case RuleHidden:
+		return "no package imports a folder the scan skips"
 	case RuleProducts:
-		return "pay and tickets never import each other"
+		return "products import only their own product, platform and kit"
 	case RuleAudit:
 		return "audit imports only platform"
 	case RuleSim:
@@ -64,7 +67,10 @@ func reason(rule string) string {
 // path equal to the module or under "<module>/" in every .go file below root,
 // including _test.go files and files excluded by build tags, in file-walk
 // order (lexical) then source order. Folders below root named testdata or
-// starting with "." or "_" are skipped, as the go command skips them.
+// starting with "." or "_" are skipped, as ./... skips them; RuleHidden
+// forbids importing them.
+// Errors: go.mod missing, unreadable or without a module line; a file that
+// does not parse (the error names the file). Errors wrap the cause (%w).
 func Scan(root string) ([]Import, error) {
 	module, err := modulePath(root)
 	if err != nil {
@@ -174,25 +180,37 @@ func Check(imports []Import) []Violation {
 	return violations
 }
 
-// ruleFor returns the rule that governs the importer folder from and whether
-// importing to breaks it (brief P1-04 › Contracts › Rules).
+// ruleFor returns the rule that governs importing to from the folder from,
+// and whether the import breaks it (brief P1-04 › Contracts › Rules).
 func ruleFor(from, to string) (string, bool) {
-	platform := under(to, "internal/platform")
+	if slices.ContainsFunc(strings.Split(to, "/"), skipDir) {
+		return RuleHidden, true
+	}
+	rule, allowed := allowList(from)
+	if rule == "" {
+		return "", false
+	}
+	return rule, !slices.ContainsFunc(allowed, func(x string) bool { return under(to, x) })
+}
+
+// allowList returns the rule of the importer folder from and the folders it
+// may import, or "" for a folder no rule covers.
+func allowList(from string) (string, []string) {
 	switch {
 	case under(from, "internal/pay") || strings.HasPrefix(from, "cmd/pay-"):
-		return RuleProducts, under(to, "internal/tickets")
+		return RuleProducts, []string{"internal/pay", "internal/platform", "internal/kit"}
 	case under(from, "internal/tickets") || strings.HasPrefix(from, "cmd/tickets-"):
-		return RuleProducts, under(to, "internal/pay")
+		return RuleProducts, []string{"internal/tickets", "internal/platform", "internal/kit"}
 	case under(from, "internal/audit") || under(from, "cmd/auditor"):
-		return RuleAudit, !platform && !under(to, "internal/audit")
+		return RuleAudit, []string{"internal/platform", "internal/audit"}
 	case under(from, "internal/sim") || under(from, "cmd/pspsim") || under(from, "cmd/banksim"):
-		return RuleSim, !platform && !under(to, "internal/sim")
+		return RuleSim, []string{"internal/platform", "internal/sim"}
 	case under(from, "internal/platform"):
-		return RulePlatform, !platform
+		return RulePlatform, []string{"internal/platform"}
 	case under(from, "internal/kit"):
-		return RuleKit, !platform && !under(to, "internal/kit")
+		return RuleKit, []string{"internal/platform", "internal/kit"}
 	default:
-		return "", false
+		return "", nil
 	}
 }
 
