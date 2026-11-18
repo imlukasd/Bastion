@@ -160,9 +160,21 @@
       "depends_on": ["P1-01"],
       "done_when": "internal/archtest fails when pay/** and tickets/** import each other, when audit imports anything but platform, or when simulators import product code; a test proves each rule fails on a violating fixture.",
       "verify": ["go test ./internal/archtest/..."],
-      "status": "todo",
-      "owner": null,
-      "evidence": null
+      "status": "done",
+      "owner": "Claude",
+      "evidence": {
+        "date": "2026-11-18",
+        "commit": "9dd37eb",
+        "results": [
+          { "command": "go test ./internal/archtest/...", "outcome": "pass", "output": "ok github.com/imlukasd/Bastion/internal/archtest 1.181s" }
+        ],
+        "mutations": [
+          "not critical; reviewer mutation run at c2e2e84: 37 mutants, 36 killed; survivor cmd/banksim prefix look-alike accepted by the owner"
+        ],
+        "review": "reviewer APPROVE after 3 rounds; round 1: 3 major (bridge package via deny-list, hidden folders, untested boundaries) fixed by allow-lists and RuleHidden; round 2: 1 blocker (gofmt, baseline red at d6e34b5) and 1 major (cmd/tickets-*, cmd/banksim fixtures) fixed in 449e47f/c2e2e84",
+        "report": "docs/briefs/completed/P1-04-archtest.md",
+        "approved_by": "Lukas"
+      }
     },
     {
       "id": "P1-05",

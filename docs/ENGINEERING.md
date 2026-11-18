@@ -11,7 +11,7 @@ Priorities, in order: **correct** (invariants hold under concurrency and failure
 | ID | Rule | Enforced by |
 | --- | --- | --- |
 | E1 | Layout per TD §2. Dependencies point one way: `cmd` → `httpapi` → module services → `kit` → `platform`. No cycles. | compiler, archtest |
-| E2 | `pay/**` and `tickets/**` never import each other; `audit` imports only `platform`; simulators import no product code (ARCH §7.1). | archtest |
+| E2 | `pay/**` and `tickets/**` (and `cmd/pay-*`, `cmd/tickets-*`) import only their own product, `platform` and `kit`; `audit` (and `cmd/auditor`) imports only `platform` and `audit`; simulators (`sim/**`, `cmd/pspsim`, `cmd/banksim`) import only `platform` and `sim`; no package imports a `testdata`, `.x` or `_x` folder (ARCH §7.1). | archtest |
 | E3 | A module owns its tables. Other modules call its Go API with the shared `pgx.Tx` and never query its tables (ARCH §7.1 rule 4). | review |
 | E4 | A module exports a small API: a service type, its request and result types, and sentinel errors. Everything else is unexported. | review |
 | E5 | Dependencies are passed explicitly through constructors. No package-level mutable state, no `init()` side effects, no service locator. | lint, review |
