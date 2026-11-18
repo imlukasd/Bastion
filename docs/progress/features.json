@@ -160,8 +160,8 @@
       "depends_on": ["P1-01"],
       "done_when": "internal/archtest fails when pay/** and tickets/** import each other, when audit imports anything but platform, or when simulators import product code; a test proves each rule fails on a violating fixture.",
       "verify": ["go test ./internal/archtest/..."],
-      "status": "todo",
-      "owner": null,
+      "status": "in_progress",
+      "owner": "Claude",
       "evidence": null
     },
     {

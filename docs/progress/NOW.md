@@ -2,10 +2,10 @@
 
 Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 40 lines; history lives in [LOG.md](LOG.md).
 
-- **Updated:** 2026-11-09, Claude with Lukas (P1-03 done)
+- **Updated:** 2026-11-18, Claude with Lukas (P1-04 started)
 - **Phase:** 1 Foundations, in progress (3/15 done)
-- **Active item:** none
-- **Branch:** main
+- **Active item:** P1-04 Architecture test for module boundaries (brief being drafted)
+- **Branch:** item/P1-04-archtest
 
 ## State
 
@@ -24,8 +24,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 ## Next step
 
-1. Owner runs `/clear`, then `/catchup`.
-2. Propose the next ready item: P1-04 Architecture test for module boundaries (not critical, `Executor: strong` as all of Phase 1), or P1-05 Ledger kit schema (critical). Read `go run scripts/brief/main.go -item <ID>` and its refs. Later items use `db.InTx` for transactions and `money.Split` for every fee (E8, E14, E20).
+1. Draft docs/briefs/active/P1-04-archtest.md (G1, not critical, `Executor: strong`): refs ARCH §7.1, TD §2, ENGINEERING E1/E2. Owner agreed the direction on 2026-11-18: go/parser over all `.go` files incl. `_test.go`; audit and sim may import only `platform` among internal packages; add E1 rule that `platform`/`kit` import no product, audit or sim code; `cmd/pay-*` and `cmd/tickets-*` never import the other product; `test/**` unconstrained; no G2/G5 skip. Wait for `approve brief`.
 
 ## Open questions (owner decides)
 
@@ -35,6 +34,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 ## Recent decisions
 
+- 2026-11-18: govulncheck flagged GO-2026-6859 (net/http, standard library); fixed on main by moving to Go 1.27.4 (4d3103e).
 - 2026-11-09: P1-03: standard library `uuid` for UUIDv7; `InTx` retries 40001/40P01 from the body or COMMIT, at most 3 times, full jitter ≤ 70 ms; config errors never echo values; no `lock_timeout` set (D15).
 - 2026-11-09: Small red-baseline fixes go straight to main, with no fix/ branch (c57b7c5: klauspost/compress v1.20.2 for GO-2026-6865).
 - 2026-10-28: Executor per brief: `strong` for critical items and all of Phase 1, `standard` (Sonnet `implementer`) otherwise.
