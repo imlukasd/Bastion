@@ -201,6 +201,12 @@ Stop and report instead of choosing when:
 - 2026-11-18 — step 3 done (strong): `Check`, `String`; `go test ./internal/archtest/...` → ok; golangci-lint → 0 issues → 9daac61.
 - 2026-11-18 — step 4 done (strong): ENGINEERING E2 text; `task check` → `check OK` → 3bbb2fe.
 - 2026-11-18 — step 5, G3 (strong): `task test` (`-race`) at 3bbb2fe → all ok (archtest 4.9 s, db 11.1 s, dbtest 12.5 s, migrate 15.1 s). G5 reviewer started.
+- 2026-11-18 — G5 round 1: CHANGES NEEDED (Surprises). Brief update approved → 848e775.
+- 2026-11-18 — step 6 done (strong): allow-list, hidden, boundary, ordering and error-wrapping tests; FAIL only on the new expectations; owner `ok tests` → 4717ee2.
+- 2026-11-18 — step 7 done (strong): `RuleHidden`, `allowList`, `Scan` Errors doc; `go test ./internal/archtest/...` → ok; golangci-lint → 0 issues → 880cde9. Own mutation run: 15 mutants, 14 killed; the survivor (tickets allow-list widened) killed by the tickets bridge fixture, owner `ok tests` → d6e34b5.
+- 2026-11-18 — step 8 done (strong): E2 text; `task check` → `check OK` → 446b025. G3 at d6e34b5: `task test` → all ok.
+- 2026-11-18 — G5 round 2: CHANGES NEEDED (gofmt blocker, cmd and importer-boundary mutants, reason texts). Brief update and tests approved together → 17a95b3, 449e47f; reason texts → c2e2e84. At c2e2e84: `task check` → `check OK`; `task test` (`-race`) → all ok (archtest 3.8 s, db 10.4 s, dbtest 10.8 s, migrate 14.1 s).
+- 2026-11-18 — G5 round 3: APPROVE (37 mutants, 36 killed).
 
 ## Surprises
 
@@ -219,5 +225,49 @@ Stop and report instead of choosing when:
   - quoted module line.
 
   Minor: the `Scan` doc lacked its Errors paragraph, and the E2 text omitted the own-group exemptions. The owner approved the brief update (D9, D11, D14, D15, Contracts, fixtures, Test map, steps 6–8).
+- Writer's miss: after d6e34b5 only `task test` ran, not `task check`; the realigned trailing comments made gofmt fail, and the writer told the reviewer the baseline was green. G5 round 2 caught it. Since then both commands run after every commit.
+- G5 round 2 mutants that survived: dropping `cmd/tickets-*` or `cmd/banksim`; `cmd/tickets-` → `cmd/tickets`; `cmd/pspsim` → prefix `cmd/psp`; importer checks without `/` for tickets, audit and kit. Killed by the fixtures of 449e47f.
+- G5 round 3, accepted as is: `under(from, "cmd/banksim")` → `HasPrefix(from, "cmd/bank")` survives (no `cmd/bankx` look-alike in `clean`).
+- Consequence of the closed allow-list (G5): generated Go code (sqlc, TD §2 puts SQL under `db/{pay,tickets}/`) must live under `internal/<product>/**`, or `RuleProducts` flags it. Recorded in NOW.md for the first sqlc item.
 
 ## Outcome
+
+## Item report — P1-04 Architecture test for module boundaries
+
+Writer's assessment: ready for approval
+
+0. Executor: strong (main session, Opus); no implementer runs, no stops. Skipped gates: none (G4 does not apply: not critical; mutation runs were done anyway, item 3).
+1. Scope: `git diff --stat main...HEAD` → 64 files, +880 −8; without fixtures: 6 files, +638 −8. Core files: `internal/archtest/imports.go` (Scan, Check, rules), `imports_test.go`, 7 fixture repositories under `internal/archtest/testdata/arch/` (`products`, `hidden`, `audit`, `sim`, `layers`, `clean`, `broken`); `docs/ENGINEERING.md` E2 text. No new dependency. Every path is in Files (`-check` → `plan OK, item P1-04 OK`).
+   Tests changed after the first `test(P1-04)` commit, each approved by the owner after G5:
+   - 4717ee2 `test(P1-04): cover allow-lists, hidden folders, boundaries`: bridge package, hidden folders, look-alike folders, ordered comparison (`slices.Equal`), `errors.Is`/`errors.As`, quoted module line, named/dot/blank imports, module root.
+   - d6e34b5 `test(P1-04): cover the tickets bridge`: from the writer's own mutation run.
+   - 449e47f `test(P1-04): cover cmd and importer boundaries`: gofmt, `cmd/tickets-api`, `cmd/banksim` and importer look-alikes; reason texts.
+   No assertion was removed or loosened: set equality became ordered equality, and the clean count went 22 → 27 → 32 only by added fixtures.
+2. Traceability:
+   | Clause | Test (file › name) | Result |
+   | --- | --- | --- |
+   | 1 pay ↔ tickets | `imports_test.go › TestImports_FixturesReportExpectedViolations/products` (11 violations incl. `_test.go`, `cmd/*`, bridge, named/dot/blank, module root, `kitx`, sim), `TestImports_RepoFollowsRules` | pass |
+   | 2 audit | `…/audit` (4 violations incl. `cmd/auditor`, `platformx`) | pass |
+   | 3 simulators | `…/sim` (6 violations incl. `cmd/pspsim`, `cmd/banksim`, `simulators`) | pass |
+   | 4 each rule fails on a fixture | `…/products`, `/hidden`, `/audit`, `/sim`, `/layers` (D3); no false positive: `…/clean`, `TestScan_Clean` (32 imports); `TestScan_Errors`; `TestViolation_String` | pass |
+3. Guards: not a critical item, so no G4 table is required. Mutation runs:
+   - The writer's 15 mutants at 880cde9: 14 killed; the survivor led to d6e34b5.
+   - The reviewer's final run at c2e2e84: 37 mutants, 36 killed. The one survivor, `cmd/banksim` → prefix `cmd/bank`, is accepted (Surprises).
+   - Killed include: the `/` boundary of `under`; each importer and `cmd` clause; each allow-list widened or narrowed; `RuleHidden`; `%w` ×3; duplicates; module root; `Unquote`; `SkipDir`; skipping `_test.go`; the root guard.
+4. Verify (at c2e2e84, WSL2, Docker Engine 29.9.2):
+   - `go test ./internal/archtest/...` → `ok github.com/imlukasd/Bastion/internal/archtest 1.9s`.
+   - `task check` → `check OK`.
+   - `task test` (`-race -count=1 ./...`) → all packages `ok`.
+   - The new tests run under `-short`, so they are part of the baseline (REVIEW G3: "build, lint, archtest").
+5. Spec: no deviations. ARCH §7.1 rule 2 ("Both may import `platform` and `kit`") is now enforced as an allow-list. E2 text updated (D14).
+6. Decisions during the item:
+   - D9 `RuleHidden`, D11 corrected and D15 (products may not import `internal/sim`): owner, after G5.
+   - D14 E2 text, then the reason texts "only platform and audit/sim": owner, after G5.
+7. Review (G5, reviewer subagent, fresh context, 3 rounds):
+   - Round 1, CHANGES NEEDED. 3 major: E2/D11 bridge package; D9 hidden folders; E32 untested boundaries. 6 minor: E13 `%w` untested; duplicates/order; module root and quoted module; E37 `Scan` doc; D14 own-group wording; NOW.md. All resolved by 848e775 → 446b025.
+   - Round 2, CHANGES NEEDED. 1 blocker: gofmt, baseline red at d6e34b5 (writer's miss). 1 major: E32 `cmd/tickets-*`, `cmd/banksim` without fixtures. 4 minor: importer look-alikes; reason texts; sqlc placement; handoff. Resolved by 17a95b3 → c2e2e84; handoff items done in this handoff.
+   - Round 3, APPROVE. 1 minor accepted: `cmd/bankx` look-alike.
+8. Follow-ups:
+   - Generated code (sqlc) must live under `internal/<product>/**` (NOW.md, first sqlc item).
+   - Optional: a `cmd/bankx` look-alike fixture.
+   - Next item: P1-05 Ledger kit schema (critical) or P1-10 Idempotency kit.

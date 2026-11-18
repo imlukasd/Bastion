@@ -4,7 +4,7 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 - **Updated:** 2026-11-18, Claude with Lukas (P1-04 started)
 - **Phase:** 1 Foundations, in progress (3/15 done)
-- **Active item:** P1-04 Architecture test for module boundaries (brief approved; tests being written)
+- **Active item:** P1-04 Architecture test for module boundaries (gates done, item report awaiting the owner's `approve`)
 - **Branch:** item/P1-04-archtest
 
 ## State
@@ -24,10 +24,12 @@ Overwritten at every handoff (AGENTS.md › Session protocol › End). At most 4
 
 ## Next step
 
-1. Step 1 of docs/briefs/active/P1-04-archtest.md (G2): stubs in `internal/archtest/imports.go`, fixtures in `internal/archtest/testdata/arch/`, `imports_test.go`; show the tests failing for the right reason; on the owner's `ok tests` commit `test(P1-04): …`. Then steps 2–5 (`Executor: strong`).
+1. Owner reads the item report in docs/briefs/active/P1-04-archtest.md › Outcome and answers `approve` (G6), or `changes: …`.
+2. On `approve`: evidence in features.json (commit c2e2e84), brief to `docs/briefs/completed/`, LOG.md entry, `chore(P1-04): done`, merge `--no-ff` into main, push.
 
 ## Open questions (owner decides)
 
+- P1-04 consequence: archtest allows products to import only their own product, `platform` and `kit`, so generated Go code (sqlc) must live under `internal/<product>/**`, not `db/<product>/`. Decide with the first sqlc item.
 - Spec gap (P1-03 D15): TD §1.5 maps `55P03` (`lock_timeout`), but no section sets a `lock_timeout` value, so without one a lock wait never times out. Decide with the item that defines API and worker timeouts.
 - Docker Desktop cannot pull images: its proxy `http.docker.internal:3128` ends Docker Hub requests in `EOF`. Check Settings › Resources › Proxies. The workaround is above.
 - CI on GitHub Actions (TD §34.4): deferred by the owner on 2026-10-28.
