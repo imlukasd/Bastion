@@ -37,7 +37,27 @@ type Violation struct {
 }
 
 // String formats "<File>:<Line>: <From> imports <To> (<Rule>: <reason>)".
-func (v Violation) String() string { return "" }
+func (v Violation) String() string {
+	return fmt.Sprintf("%s:%d: %s imports %s (%s: %s)", v.File, v.Line, v.From, v.To, v.Rule, reason(v.Rule))
+}
+
+// reason explains a rule in the words of its constant's comment.
+func reason(rule string) string {
+	switch rule {
+	case RuleProducts:
+		return "pay and tickets never import each other"
+	case RuleAudit:
+		return "audit imports only platform"
+	case RuleSim:
+		return "simulators import only platform"
+	case RulePlatform:
+		return "platform imports only platform"
+	case RuleKit:
+		return "kit imports only platform and kit"
+	default:
+		return "unknown rule"
+	}
+}
 
 // Scan reads the module path from <root>/go.mod and returns every import of a
 // path equal to the module or under "<module>/" in every .go file below root,
@@ -143,4 +163,39 @@ func modulePackage(imported, module string) (string, bool) {
 }
 
 // Check returns the imports that break a rule, in input order.
-func Check(imports []Import) []Violation { return nil }
+func Check(imports []Import) []Violation {
+	var violations []Violation
+	for _, i := range imports {
+		if rule, broken := ruleFor(i.From, i.To); broken {
+			violations = append(violations, Violation{Import: i, Rule: rule})
+		}
+	}
+	return violations
+}
+
+// ruleFor returns the rule that governs the importer folder from and whether
+// importing to breaks it (brief P1-04 › Contracts › Rules).
+func ruleFor(from, to string) (string, bool) {
+	platform := under(to, "internal/platform")
+	switch {
+	case under(from, "internal/pay") || strings.HasPrefix(from, "cmd/pay-"):
+		return RuleProducts, under(to, "internal/tickets")
+	case under(from, "internal/tickets") || strings.HasPrefix(from, "cmd/tickets-"):
+		return RuleProducts, under(to, "internal/pay")
+	case under(from, "internal/audit") || under(from, "cmd/auditor"):
+		return RuleAudit, !platform && !under(to, "internal/audit")
+	case under(from, "internal/sim") || under(from, "cmd/pspsim") || under(from, "cmd/banksim"):
+		return RuleSim, !platform && !under(to, "internal/sim")
+	case under(from, "internal/platform"):
+		return RulePlatform, !platform
+	case under(from, "internal/kit"):
+		return RuleKit, !platform && !under(to, "internal/kit")
+	default:
+		return "", false
+	}
+}
+
+// under reports whether p is the folder x or below it.
+func under(p, x string) bool {
+	return p == x || strings.HasPrefix(p, x+"/")
+}
